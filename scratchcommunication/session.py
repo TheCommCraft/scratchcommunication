@@ -1,6 +1,7 @@
 import warnings
 from .headers import headers
 from .exceptions import InvalidValueError
+from . import cloud
 import requests, json, re
 
 class Session:
@@ -44,7 +45,7 @@ class Session:
             )
         except AttributeError:
             raise InvalidValueError("Your login was wrong")
-        except:
-            raise Exception("An error occurred while trying to log in.")
-    def create_cloudrequests_server(self, project_id : int, thread : bool = True):
-        project_id = 1
+        except Exception as e:
+            raise Exception("An error occurred while trying to log in.") from e
+    def create_cloudconnection(self, project_id : int, **kwargs):
+        return cloud.CloudConnection(project_id=project_id, session=self, **kwargs)
