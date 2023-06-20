@@ -10,7 +10,10 @@ class Session:
         self.username = username
         self.headers = headers
         self._login()
-    def _login(self) -> None:
+    def _login(self):
+        '''
+        Don't use this
+        '''
         self.cookies = {
             "scratchcsrftoken" : "a",
             "scratchlanguage" : "en",
@@ -28,6 +31,9 @@ class Session:
         self.headers["X-Token"] = self.xtoken
     @classmethod
     def login(cls, username : str, password : str):
+        '''
+        Login from your username and password.
+        '''
         try:
             return cls(
                 username, session_id=str(re.search('"(.*)"', requests.post(
@@ -47,5 +53,8 @@ class Session:
             raise InvalidValueError("Your login was wrong")
         except Exception as e:
             raise Exception("An error occurred while trying to log in.") from e
-    def create_cloudconnection(self, project_id : int, **kwargs):
+    def create_cloudconnection(self, project_id : int, **kwargs) -> cloud.CloudConnection:
+        '''
+        Create a cloud connection to a project.
+        '''
         return cloud.CloudConnection(project_id=project_id, session=self, **kwargs)
