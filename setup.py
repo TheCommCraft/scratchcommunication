@@ -22,7 +22,7 @@ setup(
     keywords=['scratch', 'api'],
     install_requires=[
         'requests',
-        'websocket',
+        'websocket-client',
     ],
     python_requires='>=3.6',
 )
