@@ -122,8 +122,8 @@ class CloudConnection:
         try:
             assert not isinstance(value, Union[str, list, dict, tuple]) or isinstance(float(value), float)
             assert len(json.dumps(value)) <= 256
-        except:
-            raise ValueError("Bad value for cloud variables.")
+        except Exception as e:
+            raise ValueError("Bad value for cloud variables.") from e
 
     def _set_variable(self, *, name : str, value : Union[float, int, bool, NoneType], retry : int):
         '''
