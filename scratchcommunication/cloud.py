@@ -1,9 +1,10 @@
-from types import NoneType
 from typing import Any, Iterable, Literal, Mapping, Union
 from .exceptions import QuickAccessDisabledError
 from websocket import WebSocket
 from threading import Thread
 import json, math, time, requests
+
+NoneType = type(None)
 
 class Event:
     def __init__(self, type : Literal["set", "delete", "connect", "create"], **entries):
