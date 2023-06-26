@@ -1,7 +1,7 @@
 import warnings
 from .headers import headers
 from .exceptions import InvalidValueError
-from . import cloud
+from . import cloud, cloud_socket
 import requests, json, re
 
 class Session:
@@ -10,6 +10,7 @@ class Session:
         self.username = username
         self.headers = headers
         self._login()
+
     def _login(self):
         '''
         Don't use this
@@ -29,6 +30,7 @@ class Session:
         }).json()
         self.xtoken = account["user"]["token"]
         self.headers["X-Token"] = self.xtoken
+
     @classmethod
     def login(cls, username : str, password : str):
         '''
@@ -53,8 +55,15 @@ class Session:
             raise InvalidValueError("Your login was wrong")
         except Exception as e:
             raise Exception("An error occurred while trying to log in.") from e
+        
     def create_cloudconnection(self, project_id : int, **kwargs) -> cloud.CloudConnection:
         '''
         Create a cloud connection to a project.
         '''
         return cloud.CloudConnection(project_id=project_id, session=self, **kwargs)
+
+    def create_cloud_socket(self, project_id : int, *, packet_size : int = 220):
+        '''
+        Create a cloud socket to a project.
+        '''
+        return cloud_socket.CloudSocket(cloud=self.create_cloudconnection(project_id), packet_size=packet_size)

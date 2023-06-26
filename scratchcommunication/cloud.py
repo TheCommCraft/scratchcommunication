@@ -1,4 +1,4 @@
-from typing import Any, Iterable, Literal, Mapping, Union
+from typing import Literal, Union
 from .exceptions import QuickAccessDisabledError
 from websocket import WebSocket
 from threading import Thread
@@ -104,7 +104,7 @@ class CloudConnection:
         Use for getting the cloud logs of a project.
         '''
         logs = []
-        filter_by_name = filter_by_name if filter_by_name_literal else "☁ " + filter_by_name.replace("☁ ", "", 1)
+        filter_by_name = filter_by_name if filter_by_name_literal else "☁ " + filter_by_name.replace("☁ ", "", 1) if filter_by_name else None
         offset = 0
         while len(logs) < limit:
             data = requests.get(f"https://clouddata.scratch.mit.edu/logs?projectid={project_id}&limit={limit}&offset={offset}").json()
@@ -161,15 +161,17 @@ class CloudConnection:
         self._set_variable(name=name, value=value, retry=10)
         self.emit_event("set", name=name.replace("☁ ", "", 1), var=name, value=value, timestamp=time.time())
 
-    def get_variable(self, * name : str, name_literal : bool = False) -> Union[float, int, bool, NoneType]:
+    def get_variable(self, *, name : str, name_literal : bool = False) -> Union[float, int, bool, NoneType]:
         '''
         Use for getting the value of a cloud variable.
         '''
-        if self.receive_from_websocket:
-            return self.values[name]
         name = name if name_literal else "☁ " + name.replace("☁ ", "", 1)
+        if self.receive_from_websocket:
+            try:
+                return self.values[name]
+            except: pass
         try:
-            return self.get_cloud_logs(project_id=self.project_id, limit=1)[0]["value"]
+            return self.get_cloud_logs(project_id=self.project_id, limit=1, filter_by_name=name, filter_by_name_literal=True)[0]["value"]
         except IndexError:
             return self.values[name]
 
@@ -183,17 +185,19 @@ class CloudConnection:
             raise QuickAccessDisabledError("Quickaccess is disabled")
         self.set_variable(name=item, value=value)
     
-    def receive_new_data(self) -> dict:
+    def receive_new_data(self, first : bool = False) -> dict:
         '''
         Use for receiving new cloud data.
         '''
         data = [json.loads(j) for j in self.websocket.recv().split("\n") if j]
+        changed = [i["name"] for i in data if i["method"] == "set" and i["name"] in self.values]
         self.values.update({i["name"]: i["value"] for i in data if i["method"] == "set"})
         for i in data:
             i.pop("project_id")
             i["var"] = i["name"]
             i["name"] = i["name"].replace("☁ ", "", 1)
-            self.emit_event(i.pop("method"), **i)
+            if not first or i["name"] in changed:
+                self.emit_event(i.pop("method"), **i)
         return self.values
 
     def receive_data(self):
@@ -203,18 +207,17 @@ class CloudConnection:
         while True:
             try:
                 self._connect()
-                self.websocket.recv()
+                self.receive_new_data(first=True)
                 break
             except: pass
         while True:
             try:
                 self.receive_new_data()
             except Exception as e:
-                #print(e)
                 while True:
                     try:
                         self._connect()
-                        self.websocket.recv()
+                        self.receive_new_data(first=True)
                         break
                     except: pass
 
