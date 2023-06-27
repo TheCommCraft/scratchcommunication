@@ -42,6 +42,6 @@ jobs:
         --outdir dist/
         .
     - name: Publish package
-      uses: pypa/gh-action-pypi-publish@releases/v1.1.0
+      uses: pypa/gh-action-pypi-publish@bf3ccd3f042a5b7ea9712a6660fd993d350ad70c
       with:
         password: ${{ secrets.PYPI_API_TOKEN }}
