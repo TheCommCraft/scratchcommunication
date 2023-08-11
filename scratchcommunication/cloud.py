@@ -1,12 +1,13 @@
 from typing import Literal, Union
-from .exceptions import QuickAccessDisabledError
+from .exceptions import QuickAccessDisabledError, ContextError
 from websocket import WebSocket
 from threading import Thread
 import json, math, time, requests
 
-NoneType = type(None)
-
 class Event:
+    '''
+    Containing data from an event
+    '''
     def __init__(self, type : Literal["set", "delete", "connect", "create"], **entries):
         entries["type"] = type
         self.__dict__.update(entries)
@@ -14,7 +15,7 @@ class Event:
     @property
     def data(self):
         if not "var" in self.__dict__:
-            raise Exception("No setting")
+            raise ContextError("No setting")
         if not "_data" in self.__dict__:
             self._data = list(filter(lambda x: x["value"] == self.value, self.project.get_cloud_logs(project_id=self.project.project_id, filter_by_name=self.var, filter_by_name_literal=True)))[0]
         return self._data
@@ -28,6 +29,9 @@ class Event:
         return self.data["timestamp"]
 
 class CloudConnection:
+    '''
+    A connection to a Scratch project
+    '''
     def __init__(self, *, project_id : int, session = None, username : str = None, quickaccess : bool = False, reconnect : bool = True, receive_from_websocket : bool = True):
         self.project_id = project_id
         self.session = session
@@ -64,7 +68,7 @@ class CloudConnection:
         '''
         self.quickaccess = False
 
-    def _connect(self, *, retry : int = 10):
+    def _connect(self, *, retry = 10):
         '''
         Don't use this.
         '''
@@ -99,12 +103,12 @@ class CloudConnection:
         self.websocket.send(json.dumps(packet) + "\n")
 
     @staticmethod
-    def get_cloud_logs(*, project_id : str, limit : int = 100, filter_by_name : Union[str, NoneType] = None, filter_by_name_literal : bool = False) -> list:
+    def get_cloud_logs(*, project_id : str, limit = 100, filter_by_name : Union[str, None] = None, filter_by_name_literal = False) -> list:
         '''
         Use for getting the cloud logs of a project.
         '''
         logs = []
-        filter_by_name = filter_by_name if filter_by_name_literal else "☁ " + filter_by_name.replace("☁ ", "", 1) if filter_by_name else None
+        filter_by_name = (filter_by_name if filter_by_name_literal else "☁ " + filter_by_name.replace("☁ ", "", 1)) if filter_by_name is not None else None
         offset = 0
         while len(logs) < limit:
             data = requests.get(f"https://clouddata.scratch.mit.edu/logs?projectid={project_id}&limit={limit}&offset={offset}").json()
@@ -115,7 +119,7 @@ class CloudConnection:
         return logs[:limit]
 
     @staticmethod
-    def verify_value(value : Union[float, int, bool, NoneType]):
+    def verify_value(value : Union[float, int, bool, None]):
         '''
         Use for detecting if a  value can be used for cloud variables.
         '''
@@ -125,7 +129,7 @@ class CloudConnection:
         except Exception as e:
             raise ValueError("Bad value for cloud variables.") from e
 
-    def _set_variable(self, *, name : str, value : Union[float, int, bool, NoneType], retry : int):
+    def _set_variable(self, *, name : str, value : Union[float, int, bool, None], retry : int):
         '''
         Don't use this.
         '''
@@ -149,7 +153,7 @@ class CloudConnection:
             self._connect()
             self._set_variable(name=name, value=value, retry=retry - 1)
 
-    def set_variable(self, *, name : str, value : Union[float, int, bool, NoneType], name_literal : bool = False):
+    def set_variable(self, *, name : str, value : Union[float, int, bool, None], name_literal = False):
         '''
         Use for setting a cloud variable.
         '''
@@ -161,7 +165,7 @@ class CloudConnection:
         self._set_variable(name=name, value=value, retry=10)
         self.emit_event("set", name=name.replace("☁ ", "", 1), var=name, value=value, timestamp=time.time())
 
-    def get_variable(self, *, name : str, name_literal : bool = False) -> Union[float, int, bool, NoneType]:
+    def get_variable(self, *, name : str, name_literal = False) -> Union[float, int, bool, None]:
         '''
         Use for getting the value of a cloud variable.
         '''
@@ -175,17 +179,17 @@ class CloudConnection:
         except IndexError:
             return self.values[name]
 
-    def __getitem__(self, item : str) -> Union[float, int, bool, NoneType]:
+    def __getitem__(self, item : str) -> Union[float, int, bool, None]:
         if not self.quickaccess:
             raise QuickAccessDisabledError("Quickaccess is disabled")
         return self.get_variable(name=item)
 
-    def __setitem__(self, item : str, value : Union[float, int, bool, NoneType]):
+    def __setitem__(self, item : str, value : Union[float, int, bool, None]):
         if not self.quickaccess:
             raise QuickAccessDisabledError("Quickaccess is disabled")
         self.set_variable(name=item, value=value)
     
-    def receive_new_data(self, first : bool = False) -> dict:
+    def receive_new_data(self, first = False) -> dict:
         '''
         Use for receiving new cloud data.
         '''
@@ -221,7 +225,7 @@ class CloudConnection:
                         break
                     except: pass
 
-    def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event], **entries) -> int:
+    def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event], **entries):
         '''
         Use for emitting events. Returns how many handlers could handle the event.
         '''
@@ -231,7 +235,7 @@ class CloudConnection:
             event = event.type
         return self._emit_event(event, data) + self._emit_event("any", data)
 
-    def _emit_event(self, event : Literal["set", "delete", "connect", "create", "any"], data : Event) -> int:
+    def _emit_event(self, event : Literal["set", "delete", "connect", "create", "any"], data : Event):
         '''
         Don't use this.
         '''
