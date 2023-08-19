@@ -15,21 +15,32 @@ class Session:
         '''
         Don't use this
         '''
-        self.cookies = {
-            "scratchcsrftoken" : "a",
-            "scratchlanguage" : "en",
-            "scratchpolicyseen": "true",
-            "scratchsessionsid" : self.session_id,
-            "accept": "application/json",
-            "Content-Type": "application/json",
-        }
-        account = requests.post("https://scratch.mit.edu/session", headers=self.headers, cookies={
-            "scratchsessionsid": self.session_id,
-            "scratchcsrftoken": "a",
-            "scratchlanguage": "en",
-        }).json()
-        self.xtoken = account["user"]["token"]
-        self.headers["X-Token"] = self.xtoken
+        try:
+            self.cookies = {
+                "scratchcsrftoken" : "a",
+                "scratchlanguage" : "en",
+                "scratchpolicyseen": "true",
+                "scratchsessionsid" : self.session_id,
+                "accept": "application/json",
+                "Content-Type": "application/json",
+            }
+            account = requests.post("https://scratch.mit.edu/session", headers=self.headers, cookies={
+                "scratchsessionsid": self.session_id,
+                "scratchcsrftoken": "a",
+                "scratchlanguage": "en",
+            }).json()
+            self.xtoken = account["user"]["token"]
+            self.username = account["user"]["username"]
+            self.headers["X-Token"] = self.xtoken
+            self.email = account["user"]["email"]
+            self.id = account["user"]["id"]
+            self.permissions = account["permissions"]
+            self.flags = account["flags"]
+            self.banned = account["user"]["banned"]
+        except Exception:
+            if self.username is None:
+                raise ValueError("No username supplied and there was no found. The username is needed.")
+            warnings.warn("Couldn't find token. Most features will probably still work.")
 
     @classmethod
     def login(cls, username : str, password : str):
