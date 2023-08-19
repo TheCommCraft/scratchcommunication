@@ -104,7 +104,7 @@ class CloudConnection:
         Use for getting the cloud logs of a project.
         '''
         logs = []
-        filter_by_name = filter_by_name if filter_by_name_literal else "☁ " + filter_by_name.replace("☁ ", "", 1) if filter_by_name else None
+        filter_by_name = filter_by_name if filter_by_name_literal else "☁ " + filter_by_name.removeprefix("☁ ") if filter_by_name else None
         offset = 0
         while len(logs) < limit:
             data = requests.get(f"https://clouddata.scratch.mit.edu/logs?projectid={project_id}&limit={limit}&offset={offset}").json()
@@ -154,18 +154,18 @@ class CloudConnection:
         Use for setting a cloud variable.
         '''
         self.verify_value(value)
-        name = name if name_literal else "☁ " + name.replace("☁ ", "", 1)
+        name = name if name_literal else "☁ " + name.removeprefix("☁ ")
         time.sleep(max(0, self.wait_until - time.time()))
         self.wait_until = time.time() + 0.1
 
         self._set_variable(name=name, value=value, retry=10)
-        self.emit_event("set", name=name.replace("☁ ", "", 1), var=name, value=value, timestamp=time.time())
+        self.emit_event("set", name=name.removeprefix("☁ "), var=name, value=value, timestamp=time.time())
 
     def get_variable(self, *, name : str, name_literal : bool = False) -> Union[float, int, bool, None]:
         '''
         Use for getting the value of a cloud variable.
         '''
-        name = name if name_literal else "☁ " + name.replace("☁ ", "", 1)
+        name = name if name_literal else "☁ " + name.removeprefix("☁ ")
         if self.receive_from_websocket:
             try:
                 return self.values[name]
@@ -195,7 +195,7 @@ class CloudConnection:
         for i in data:
             i.pop("project_id")
             i["var"] = i["name"]
-            i["name"] = i["name"].replace("☁ ", "", 1)
+            i["name"] = i["name"].removeprefix("☁ ")
             if not first or i["name"] in changed:
                 self.emit_event(i.pop("method"), **i)
         return self.values
