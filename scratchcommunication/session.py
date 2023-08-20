@@ -5,25 +5,36 @@ from . import cloud, cloud_socket
 import requests, json, re
 
 class Session:
+    __slots__ = ("session_id", "username", "headers", "cookies", "xtoken", "email", "id", "permissions", "flags", "banned", "session_data")
     def __init__(self, username : str = None, *, session_id : str):
         self.session_id = session_id
         self.username = username
         self.headers = headers
+        self.cookies = {
+            "scratchcsrftoken" : "a",
+            "scratchlanguage" : "en",
+            "scratchpolicyseen": "true",
+            "scratchsessionsid" : self.session_id,
+            "accept": "application/json",
+            "Content-Type": "application/json",
+        }
         self._login()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
+
+    def logout(self):
+        for attr in self.__slots__:
+            delattr(self, attr)
 
     def _login(self):
         '''
         Don't use this
         '''
         try:
-            self.cookies = {
-                "scratchcsrftoken" : "a",
-                "scratchlanguage" : "en",
-                "scratchpolicyseen": "true",
-                "scratchsessionsid" : self.session_id,
-                "accept": "application/json",
-                "Content-Type": "application/json",
-            }
             account = requests.post("https://scratch.mit.edu/session", headers=self.headers, cookies={
                 "scratchsessionsid": self.session_id,
                 "scratchcsrftoken": "a",
@@ -37,6 +48,7 @@ class Session:
             self.permissions = account["permissions"]
             self.flags = account["flags"]
             self.banned = account["user"]["banned"]
+            self.session_data = account
         except Exception:
             if self.username is None:
                 raise ValueError("No username supplied and there was no found. The username is needed.")
