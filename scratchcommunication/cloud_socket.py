@@ -30,7 +30,13 @@ class CloudSocket:
                 return
             self.clients[client] = ""
             self.new_msgs[client] = []
-            self.new_clients.append(client)
+            self.new_clients.append((client, event.user))
+
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
 
     @staticmethod
     def _decode(data : int):
@@ -59,12 +65,20 @@ class CloudSocket:
         Returns a new client
         """
         while not self.new_clients: pass
-        return CloudSocketConnection(cloud_socket=self, client_id=self.new_clients.pop(0))
+        new_client = self.new_clients.pop(0)
+        return (CloudSocketConnection(cloud_socket=self, client_id=new_client[0], username=new_client[1]), new_client[1])
     
 class CloudSocketConnection:
-    def __init__(self, *, cloud_socket : CloudSocket, client_id : str):
+    def __init__(self, *, cloud_socket : CloudSocket, client_id : str, username : str = None):
         self.cloud_socket = cloud_socket
         self.client_id = client_id
+        self.username = username
+
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
     
     def send(self, data : str):
         """
@@ -72,9 +86,11 @@ class CloudSocketConnection:
         """
         data = str(self.cloud_socket._encode(data))
         packets = [data[idx:idx + self.cloud_socket.packet_size] for idx in range(0, len(data), self.cloud_socket.packet_size)]
+        packet_idx = 0
         for packet in packets[:-1]:
-            self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"-{packet}.{self.client_id}{random.randrange(100000)}")
-        self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"{packets[-1]}.{self.client_id}{random.randrange(100000)}")
+            self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"-{packet}.{self.client_id}{packet_idx}")
+            packet_idx += 1
+        self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"{packets[-1]}.{self.client_id}{packet_idx}")
 
     def recv(self) -> str:
         """
