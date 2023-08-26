@@ -2,7 +2,7 @@ from typing import Literal, Union
 from .exceptions import QuickAccessDisabledError
 from websocket import WebSocket
 from threading import Thread
-import json, math, time, requests
+import json, math, time, requests, warnings
 
 NoneType = type(None)
 
@@ -51,6 +51,12 @@ class CloudConnection:
             return
         self.data_reception = Thread(target=self.receive_data)
         self.data_reception.start()
+
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
 
     def enable_quickaccess(self):
         '''
@@ -242,7 +248,8 @@ class CloudConnection:
             try:
                 i(data)
                 amount += 1
-            except: pass
+            except Exception as e:
+                warnings.warn(f"There was an exception while trying to process an event: {e}")
         return amount
 
     def on(self, event : Literal["set", "delete", "connect", "create", "any"]):
