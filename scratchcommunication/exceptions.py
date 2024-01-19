@@ -6,3 +6,9 @@ class QuickAccessDisabledError(Exception):
 
 class NotSupported(Exception):
     pass
+
+class ErrorInEventHandler(RuntimeWarning):
+    pass
+
+class ErrorInCloudSocket(RuntimeWarning):
+    pass
