@@ -1,8 +1,8 @@
 from typing import Literal, Union
-from .exceptions import QuickAccessDisabledError, NotSupported
+from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler
 from websocket import WebSocket
 from threading import Thread
-import json, math, time, requests, warnings
+import json, math, time, requests, warnings, traceback
 
 NoneType = type(None)
 
@@ -14,6 +14,7 @@ class Event:
 
     @property
     def data(self):
+        raise NotSupported("The Cloudmonitor isn't working. If it is, please contact me on github.")
         if not "var" in self.__dict__:
             raise Exception("No setting")
         if not "_data" in self.__dict__:
@@ -48,7 +49,9 @@ class CloudConnection:
         quickaccess: bool = False,
         reconnect: bool = True,
         receive_from_websocket: bool = True,
+        warning_type: type[Warning] = ErrorInEventHandler,
     ):
+        self.warning_type = warning_type
         self.project_id = project_id
         self.session = session
         self.username = username if username is not None else session.username
@@ -319,7 +322,8 @@ class CloudConnection:
                 amount += 1
             except Exception as e:
                 warnings.warn(
-                    f"There was an exception while trying to process an event: {e}"
+                    f"There was an exception while trying to process an event: {traceback.format_exc()}",
+                    self.warning_type
                 )
         return amount
 
@@ -363,7 +367,7 @@ class TwCloudConnection(CloudConnection):
         self.data_reception = Thread(target=self.receive_data)
         self.data_reception.start()
 
-    def _connect(self, *, cloud_host=None, retry=10):
+    def _connect(self, *, cloud_host = None, retry : int = 10):
         try:
             if cloud_host is not None:
                 self.cloud_host = cloud_host

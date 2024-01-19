@@ -1,6 +1,6 @@
 import warnings
 from .headers import headers
-from .exceptions import InvalidValueError
+from .exceptions import InvalidValueError, ErrorInCloudSocket
 from . import cloud, cloud_socket
 import requests, json, re
 
@@ -85,8 +85,8 @@ class Session:
         '''
         return cloud.CloudConnection(project_id=project_id, session=self, **kwargs)
 
-    def create_cloud_socket(self, project_id : int, *, packet_size : int = 220):
+    def create_cloud_socket(self, project_id : int, *, packet_size : int = 220, cloudconnection_kwargs : dict = None, security : tuple = None, **kwargs):
         '''
         Create a cloud socket to a project.
         '''
-        return cloud_socket.CloudSocket(cloud=self.create_cloudconnection(project_id), packet_size=packet_size)
+        return cloud_socket.CloudSocket(cloud=self.create_cloudconnection(project_id, warning_type=ErrorInCloudSocket, **(cloudconnection_kwargs if cloudconnection_kwargs else {})), packet_size=packet_size, security=security, **kwargs)
