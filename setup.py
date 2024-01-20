@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='scratchcommunication',
-    version='2.0.1',
+    version='2.0.2',
     author='Gine Mosild',
     author_email='thecommcraft@gmail.com',
     description='A python module for communicating with scratch projects',
