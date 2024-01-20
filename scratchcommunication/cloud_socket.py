@@ -225,15 +225,17 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         """
         Use for sending data to the client if secure
         """
-        packets = [data[idx:idx + self.cloud_socket.packet_size] for idx in range(0, len(data), self.cloud_socket.packet_size)]
+        packets = ["".join(i) for i in batched(data, self.cloud_socket.packet_size // 2 - 15)]
         packet_idx = 0
         for packet in packets[:-1]:
             salt = int(time.time() * 100)
             packet = self.cloud_socket._encode(self.encrypter.encrypt(packet, salt=salt))
+            print(f"-{packet}{str(salt).zfill(15)}.{self.client_id}{packet_idx}")
             self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"-{packet}{str(salt).zfill(15)}.{self.client_id}{packet_idx}")
             packet_idx += 1
         salt = int(time.time() * 100)
         packet = self.cloud_socket._encode(self.encrypter.encrypt(packets[-1], salt=salt))
+        print(f"{packet}{str(salt).zfill(15)}.{self.client_id}{packet_idx}")
         self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"{packet}{str(salt).zfill(15)}.{self.client_id}{packet_idx}")
     
     def send(self, data : str):
@@ -244,7 +246,7 @@ class CloudSocketConnection(BaseCloudSocketConnection):
             self._secure_send(data)
             return
         data = str(self.cloud_socket._encode(data))
-        packets = [data[idx:idx + self.cloud_socket.packet_size] for idx in range(0, len(data), self.cloud_socket.packet_size)]
+        packets = list(batched(data, self.cloud_socket.packet_size))
         packet_idx = 0
         for packet in packets[:-1]:
             self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"-{packet}.{self.client_id}{packet_idx}")
