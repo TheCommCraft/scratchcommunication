@@ -5,7 +5,7 @@ from . import cloud, cloud_socket
 import requests, json, re
 
 class Session:
-    __slots__ = ("session_id", "username", "headers", "cookies", "xtoken", "email", "id", "permissions", "flags", "banned", "session_data")
+    __slots__ = ("session_id", "username", "headers", "cookies", "xtoken", "email", "id", "permissions", "flags", "banned", "session_data", "mute_status", "new_scratcher")
     def __init__(self, username : str = None, *, session_id : str):
         self.session_id = session_id
         self.username = username
@@ -49,6 +49,8 @@ class Session:
             self.flags = account["flags"]
             self.banned = account["user"]["banned"]
             self.session_data = account
+            self.new_scratcher = account["permissions"]["new_scratcher"]
+            self.mute_status = account["permissions"]["mute_status"]
         except Exception:
             if self.username is None:
                 raise ValueError("No username supplied and there was no found. The username is needed.")
