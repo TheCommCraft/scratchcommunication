@@ -230,12 +230,10 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         for packet in packets[:-1]:
             salt = int(time.time() * 100)
             packet = self.cloud_socket._encode(self.encrypter.encrypt(packet, salt=salt))
-            print(f"-{packet}{str(salt).zfill(15)}.{self.client_id}{packet_idx}")
             self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"-{packet}{str(salt).zfill(15)}.{self.client_id}{packet_idx}")
             packet_idx += 1
         salt = int(time.time() * 100)
         packet = self.cloud_socket._encode(self.encrypter.encrypt(packets[-1], salt=salt))
-        print(f"{packet}{str(salt).zfill(15)}.{self.client_id}{packet_idx}")
         self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"{packet}{str(salt).zfill(15)}.{self.client_id}{packet_idx}")
     
     def send(self, data : str):
