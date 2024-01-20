@@ -96,4 +96,48 @@ tw_cloud = scratchcommunication.TwCloudConnection(
 )
 ```
 
+## Working with cloud variables
+
+```python
+cloud.set_variable(
+    name = "HIGHSCORE", # A cloud symbol will be added automatically if there isn't one
+    value = 1000,
+    name_literal = False # (Optional) Allows for setting a variable with a name without a cloud symbol
+)
+value = cloud.get_variable(
+    name = "HIGHSCORE", 
+    name_literal = False
+)
+
+# If you enabled quickaccess
+
+cloud["HIGHSCORE"] = 1000
+
+value = cloud["HIGHSCORE"]
+
+# Events
+
+@cloud.on("set") # Can be "set", "create", "delete", "connect" or "any"
+def on_set(event):
+    print(
+        event.project_id, 
+        event.name, # Variable name without cloud symbol
+        event.var, # Variable name
+        event.value, 
+        event.type, # Event type
+        event.project, # Cloud connection
+        event.user, # Not working due to an api issue
+        event.timestamp # Not working due to an api issue
+    )
+
+cloud.emit_event(event="custom_event_1", **entries)
+# Or
+cloud.emit_event(event=scratchcommunication.Event(type="custom_event_1", **entries))
+
+# Enabling or disabling quickaccess
+
+cloud.enable_quickaccess()
+cloud.disable_quickaccess()
+```
+
 ## More coming soon!
