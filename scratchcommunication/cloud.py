@@ -71,7 +71,7 @@ class CloudConnection:
                 try:
                     self.receive_new_data()
                     return
-                except:
+                except Exception:
                     self._connect()
         self.data_reception = Thread(target=self.receive_data)
         self.data_reception.start()
@@ -192,7 +192,7 @@ class CloudConnection:
             )
         except ConnectionError as e:
             raise e
-        except:
+        except Exception:
             if not self.reconnect:
                 raise ConnectionError(
                     "There was an error while setting the cloud variable."
@@ -239,7 +239,7 @@ class CloudConnection:
         if self.receive_from_websocket:
             try:
                 return self.values[name]
-            except:
+            except Exception:
                 pass
         try:
             return self.get_cloud_logs(
@@ -285,7 +285,7 @@ class CloudConnection:
                 self._connect()
                 self.receive_new_data(first=True)
                 break
-            except:
+            except Exception:
                 pass
         while True:
             try:
@@ -296,7 +296,7 @@ class CloudConnection:
                         self._connect()
                         self.receive_new_data(first=True)
                         break
-                    except:
+                    except Exception:
                         pass
 
     def emit_event(self, event: Union[Literal["set", "delete", "connect", "create"], Event], **entries) -> int:
@@ -361,7 +361,7 @@ class TwCloudConnection(CloudConnection):
                 try:
                     self.receive_new_data()
                     break
-                except:
+                except Exception:
                     self._connect()
             return
         self.data_reception = Thread(target=self.receive_data)
