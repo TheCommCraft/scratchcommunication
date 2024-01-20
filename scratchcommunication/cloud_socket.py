@@ -244,7 +244,7 @@ class CloudSocketConnection(BaseCloudSocketConnection):
             self._secure_send(data)
             return
         data = str(self.cloud_socket._encode(data))
-        packets = list(batched(data, self.cloud_socket.packet_size))
+        packets = ["".join(i) for i in batched(data, self.cloud_socket.packet_size)]
         packet_idx = 0
         for packet in packets[:-1]:
             self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"-{packet}.{self.client_id}{packet_idx}")
