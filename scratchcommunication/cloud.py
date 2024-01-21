@@ -53,6 +53,7 @@ class CloudConnection:
         daemon_thread : bool = False,
         connect : bool = True
     ):
+        self.thread_running = True
         self.warning_type = warning_type
         self.project_id = project_id
         self.session = session
@@ -78,7 +79,6 @@ class CloudConnection:
                     self._connect()
         self.data_reception = StoppableThread(target=self.receive_data, daemon=daemon_thread)
         self.data_reception.start()
-        self.thread_running = True
 
     def __enter__(self):
         return self
@@ -387,7 +387,6 @@ class TwCloudConnection(CloudConnection):
                     self._connect()
         self.data_reception = StoppableThread(target=self.receive_data, daemon=daemon_thread)
         self.data_reception.start()
-        self.thread_running = True
 
     def _connect(self, *, cloud_host = None, retry : int = 10):
         try:
