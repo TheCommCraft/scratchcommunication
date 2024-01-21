@@ -1,7 +1,7 @@
 from typing import Literal, Union
-from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler
+from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException
 from websocket import WebSocket
-from threading import Thread
+from func_timeout import StoppableThread
 import json, math, time, requests, warnings, traceback
 
 NoneType = type(None)
@@ -43,13 +43,15 @@ class CloudConnection:
     def __init__(
         self,
         *,
-        project_id: int,
-        session=None,
-        username: str = None,
-        quickaccess: bool = False,
-        reconnect: bool = True,
-        receive_from_websocket: bool = True,
-        warning_type: type[Warning] = ErrorInEventHandler,
+        project_id : int,
+        session = None,
+        username : str = None,
+        quickaccess : bool = False,
+        reconnect : bool = True,
+        receive_from_websocket : bool = True,
+        warning_type : type[Warning] = ErrorInEventHandler,
+        daemon_thread : bool = False,
+        connect : bool = True
     ):
         self.warning_type = warning_type
         self.project_id = project_id
@@ -57,7 +59,6 @@ class CloudConnection:
         self.username = username if username is not None else session.username
         self.quickaccess = quickaccess
         self.reconnect = reconnect
-        self.host = ""
         self.values = {}
         self.events = {}
         self.cloud_host = "wss://clouddata.scratch.mit.edu"
@@ -65,6 +66,8 @@ class CloudConnection:
         self.wait_until = 0
         self.receive_from_websocket = receive_from_websocket
         self.data_reception = None
+        if not connect:
+            return
         self._connect()
         if not self.receive_from_websocket:
             while True:
@@ -73,14 +76,19 @@ class CloudConnection:
                     return
                 except Exception:
                     self._connect()
-        self.data_reception = Thread(target=self.receive_data)
+        self.data_reception = StoppableThread(target=self.receive_data, daemon=daemon_thread)
         self.data_reception.start()
+        self.thread_running = True
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         pass
+
+    def stop_thread(self):
+        self.thread_running = False
+        self.data_reception.stop(StopException)
 
     def enable_quickaccess(self):
         """
@@ -94,7 +102,7 @@ class CloudConnection:
         """
         self.quickaccess = False
 
-    def _connect(self, *, retry: int = 10):
+    def _connect(self, *, retry : int = 10):
         """
         Don't use this.
         """
@@ -133,10 +141,10 @@ class CloudConnection:
     @staticmethod
     def get_cloud_logs(
         *,
-        project_id: str,
-        limit: int = 100,
-        filter_by_name: Union[str, None] = None,
-        filter_by_name_literal: bool = False,
+        project_id : str,
+        limit : int = 100,
+        filter_by_name : Union[str, None] = None,
+        filter_by_name_literal : bool = False,
     ) -> list:
         """
         Use for getting the cloud logs of a project.
@@ -164,7 +172,7 @@ class CloudConnection:
                 break
         return logs[:limit]
 
-    def verify_value(self, value: Union[float, int, bool]):
+    def verify_value(self, value : Union[float, int, bool]):
         """
         Use for detecting if a value can be used for cloud variables.
         """
@@ -175,7 +183,7 @@ class CloudConnection:
             raise ValueError("Bad value for cloud variables.") from e
 
     def _set_variable(
-        self, *, name: str, value: Union[float, int, bool], retry: int
+        self, *, name : str, value : Union[float, int, bool], retry : int
     ):
         """
         Don't use this.
@@ -207,9 +215,9 @@ class CloudConnection:
     def set_variable(
         self,
         *,
-        name: str,
-        value: Union[float, int, bool],
-        name_literal: bool = False,
+        name : str,
+        value : Union[float, int, bool],
+        name_literal : bool = False,
     ):
         """
         Use for setting a cloud variable.
@@ -230,7 +238,7 @@ class CloudConnection:
         )
 
     def get_variable(
-        self, *, name: str, name_literal: bool = False
+        self, *, name : str, name_literal : bool = False
     ) -> Union[float, int, bool]:
         """
         Use for getting the value of a cloud variable.
@@ -251,17 +259,17 @@ class CloudConnection:
         except (IndexError, NotSupported):
             return self.values[name]
 
-    def __getitem__(self, item: str) -> Union[float, int, bool]:
+    def __getitem__(self, item : str) -> Union[float, int, bool]:
         if not self.quickaccess:
             raise QuickAccessDisabledError("Quickaccess is disabled")
         return self.get_variable(name=item)
 
-    def __setitem__(self, item: str, value: Union[float, int, bool]):
+    def __setitem__(self, item : str, value : Union[float, int, bool]):
         if not self.quickaccess:
             raise QuickAccessDisabledError("Quickaccess is disabled")
         self.set_variable(name=item, value=value)
 
-    def receive_new_data(self, first: bool = False) -> dict:
+    def receive_new_data(self, first : bool = False) -> dict:
         """
         Use for receiving new cloud data.
         """
@@ -280,18 +288,18 @@ class CloudConnection:
         """
         Use for receiving cloud data.
         """
-        while True:
+        while self.thread_running:
             try:
                 self._connect()
                 self.receive_new_data(first=True)
                 break
             except Exception:
                 pass
-        while True:
+        while self.thread_running:
             try:
                 self.receive_new_data()
             except Exception as e:
-                while True:
+                while self.thread_running:
                     try:
                         self._connect()
                         self.receive_new_data(first=True)
@@ -299,7 +307,7 @@ class CloudConnection:
                     except Exception:
                         pass
 
-    def emit_event(self, event: Union[Literal["set", "delete", "connect", "create"], Event], **entries) -> int:
+    def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event], **entries) -> int:
         """
         Use for emitting events. Returns how many handlers could handle the event.
         """
@@ -309,7 +317,7 @@ class CloudConnection:
             event = event.type
         return self._emit_event(event, data) + self._emit_event("any", data)
 
-    def _emit_event(self, event: Literal["set", "delete", "connect", "create", "any"], data: Event) -> int:
+    def _emit_event(self, event : Literal["set", "delete", "connect", "create", "any"], data : Event) -> int:
         """
         Don't use this.
         """
@@ -327,7 +335,7 @@ class CloudConnection:
                 )
         return amount
 
-    def on(self, event: Literal["set", "delete", "connect", "create", "any"]):
+    def on(self, event : Literal["set", "delete", "connect", "create", "any"]):
         """
         Register a new event.
         """
@@ -343,29 +351,43 @@ class CloudConnection:
 
 
 class TwCloudConnection(CloudConnection):
-    def __init__(self, *, project_id: int, username: str = "player1000", quickaccess: bool = False, reconnect: bool = True, receive_from_websocket: bool = True, cloud_host: str = "wss://clouddata.turbowarp.org/", accept_strs: bool = False):
-        self.project_id = project_id
-        self.username = username
-        self.quickaccess = quickaccess
-        self.reconnect = reconnect
-        self.values = {}
-        self.events = {}
+    def __init__(
+        self, 
+        *, 
+        project_id : int, 
+        username : str = "player1000", 
+        quickaccess : bool = False, 
+        reconnect : bool = True, 
+        receive_from_websocket : bool = True, 
+        warning_type : type[Warning] = ErrorInEventHandler,
+        daemon_thread : bool = False, 
+        cloud_host : str = "wss://clouddata.turbowarp.org/", 
+        accept_strs : bool = False
+    ):
+        super().__init__(
+            self,
+            project_id=project_id, 
+            username=username,
+            quickaccess=quickaccess,
+            reconnect=reconnect,
+            receive_from_websocket=receive_from_websocket,
+            warning_type=warning_type,
+            daemon_thread=daemon_thread,
+            connect=False
+        )
         self.cloud_host = cloud_host
         self.accept_strs = accept_strs
-        self.wait_until = 0
-        self.receive_from_websocket = receive_from_websocket
-        self.data_reception = None
         self._connect()
         if not self.receive_from_websocket:
             while True:
                 try:
                     self.receive_new_data()
-                    break
+                    return
                 except Exception:
                     self._connect()
-            return
-        self.data_reception = Thread(target=self.receive_data)
+        self.data_reception = StoppableThread(target=self.receive_data, daemon=daemon_thread)
         self.data_reception.start()
+        self.thread_running = True
 
     def _connect(self, *, cloud_host = None, retry : int = 10):
         try:

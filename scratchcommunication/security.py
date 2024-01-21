@@ -37,7 +37,7 @@ def find_new_prime(byte_length = 100):
     if is_prime(prime):
       return prime
 
-def create_new_keys(byte_length = 100):
+def create_new_keys(byte_length = 130):
   def try_create_keys(p : int, q : int):
     n = p * q
     totient = (p - 1) * (q - 1) // math.gcd(p - 1, q - 1)
@@ -75,8 +75,12 @@ class RSAKeys(tuple):
     return pow(data, self[1], self[2])
 
   @classmethod
-  def create_new_keys(cls, byte_length : int = 100):
+  def create_new_keys(cls, byte_length : int = 130):
     return cls(create_new_keys(byte_length))
+  
+  @property
+  def public_keys(self) -> dict:
+    return {"public_exponent": self[0], "public_modulus": self[2]}
 
 @attrs.define(frozen=True)
 class SymmetricEncryption:

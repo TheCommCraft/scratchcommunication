@@ -12,3 +12,6 @@ class ErrorInEventHandler(RuntimeWarning):
 
 class ErrorInCloudSocket(RuntimeWarning):
     pass
+
+class StopException(BaseException):
+    pass
