@@ -5,7 +5,7 @@ with open("README.md") as f:
 
 setup(
     name='scratchcommunication',
-    version='2.0.4',
+    version='2.0.5',
     author='Gine Mosild',
     author_email='thecommcraft@gmail.com',
     description='A python module for communicating with scratch projects',
