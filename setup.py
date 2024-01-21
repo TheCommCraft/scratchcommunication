@@ -1,12 +1,15 @@
 from setuptools import setup, find_packages
 
+with open("README.md") as f:
+    long_description = f.read()
+
 setup(
     name='scratchcommunication',
     version='2.0.4',
     author='Gine Mosild',
     author_email='thecommcraft@gmail.com',
     description='A python module for communicating with scratch projects',
-    long_description='A python module for communicating with scratch projects',
+    long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/thecommcraft/scratchcommunication',
     packages=find_packages(exclude=[]),
