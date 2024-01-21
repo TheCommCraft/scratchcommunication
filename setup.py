@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='scratchcommunication',
-    version='2.0.3',
+    version='2.0.4',
     author='Simon Gilde',
     author_email='simon.c.gilde@gmail.com',
     description='A python module for communicating with scratch projects',
@@ -23,6 +23,7 @@ setup(
     install_requires=[
         'requests',
         'websocket-client',
+        'func-timeout',
     ],
     python_requires='>=3.6',
 )

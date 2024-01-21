@@ -95,6 +95,8 @@ class CloudSocket(BaseCloudSocket):
         self.key_parts = {}
         self.last_timestamp = time.time()
         self.packet_size = packet_size
+        
+    def listen(self):
         @self.cloud.on("set")
         def on_packet(event):
             try:
@@ -164,6 +166,9 @@ class CloudSocket(BaseCloudSocket):
                 return
             except AssertionError:
                 pass
+            
+    def stop(self):
+        self.cloud.stop_thread()
 
     def __enter__(self):
         return self
