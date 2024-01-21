@@ -211,7 +211,7 @@ cloud_socket = session.create_turbowarp_cloud_socket( # session.create_tw_cloud_
 
 [Cloud Socket Security](#cloud-socket-security)
 
-In order for the cloud socket to work, you'll need to add the sprite from this project to your [project](https://scratch.mit.edu/projects/884190099/). Be sure to check that all the variables starting with the cloud symbol are cloud variables and that their names stay as they are.
+In order for the cloud socket to work, you'll need to add the sprite from this [project](https://scratch.mit.edu/projects/884190099/) to yours. Be sure to check that all the variables starting with the cloud symbol are cloud variables and that their names stay as they are.
 
 ## Using a cloud socket
 
