@@ -14,7 +14,6 @@ class Event:
 
     @property
     def data(self):
-        raise NotSupported("The Cloudmonitor isn't working. If it is, please contact me on github.")
         if not "var" in self.__dict__:
             raise Exception("No setting")
         if not "_data" in self.__dict__:

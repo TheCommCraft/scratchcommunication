@@ -159,7 +159,7 @@ class CloudSocket(BaseCloudSocket):
                     
                 # New user
                     
-                client_username = None # Not currently supported
+                client_username = event.user
                 client_obj = CloudSocketConnection(cloud_socket=self, client_id=client, username=client_username, security=key)
                 self.clients[client] = client_obj
                 self.new_clients.append((client_obj, client_username))

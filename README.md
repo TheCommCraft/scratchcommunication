@@ -153,8 +153,8 @@ def on_set(event):
         event.value, 
         event.type, # Event type
         event.project, # Cloud connection
-        event.user, # Not working due to an api issue
-        event.timestamp # Not working due to an api issue
+        event.user,
+        event.timestamp
     )
 ```
 
@@ -224,7 +224,7 @@ cloud_socket.listen()
 After you start the cloud socket you can wait for a new user using `scratchcommunication.cloud_socket.CloudSocket.accept`
 
 ```python
-client, client_username = cloud_socket.accept() # client_username will be None because Scratch's cloudmonitor api is broken
+client, client_username = cloud_socket.accept()
 ```
 
 When you have a client, you can send messages to them and receive messages.
