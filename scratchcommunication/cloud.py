@@ -1,22 +1,28 @@
-from typing import Literal, Union
+from typing import Literal, Union, Any
 from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException
+import json, time, requests, warnings, traceback
 from websocket import WebSocket
 from func_timeout import StoppableThread
-import json, math, time, requests, warnings, traceback
 
 NoneType = type(None)
-
+CloudConnection = None
 
 class Event:
-    def __init__(self, type: Literal["set", "delete", "connect", "create"], **entries):
-        entries["type"] = type
+    value : Union[float, int, bool] = None
+    var : str = None
+    name : str = None
+    project : CloudConnection = None
+    def __init__(self, _type: Literal["set", "delete", "connect", "create"], **entries):
+        entries["type"] = _type
         self.__dict__.update(entries)
+        self._data = None
+        self.project = getattr(self, "project")
 
     @property
     def data(self):
-        if not "var" in self.__dict__:
-            raise Exception("No setting")
-        if not "_data" in self.__dict__:
+        if not hasattr(self, "var"):
+            raise NotSupported("No setting")
+        if not self._data:
             self._data = list(
                 filter(
                     lambda x: x["value"] == self.value,
@@ -39,6 +45,23 @@ class Event:
 
 
 class CloudConnection:
+    """
+    Connect to a cloud server and set cloud variables.
+    """
+    project_id : int
+    thread_running : bool
+    warning_type : type[Warning]
+    session : Any
+    username : str
+    quickaccess : bool
+    reconnect : bool
+    values : dict
+    events : dict
+    cloud_host : str
+    accept_strs : bool
+    wait_until : Union[float, int]
+    receive_from_websocket : bool
+    data_reception : Any
     def __init__(
         self,
         *,
@@ -86,6 +109,9 @@ class CloudConnection:
         pass
 
     def stop_thread(self):
+        """
+        Use for stopping the underlying thread.
+        """
         self.thread_running = False
         self.data_reception.stop(StopException)
 
@@ -118,8 +144,8 @@ class CloudConnection:
         except Exception as e:
             if retry == 1:
                 raise ConnectionError(
-                    f"There was an error while connecting to the cloud server: {e}"
-                )
+                    f"There was an error while connecting to the cloud server."
+                ) from e
             self._connect(retry=retry - 1)
 
     def handshake(self):
@@ -159,7 +185,8 @@ class CloudConnection:
         offset = 0
         while len(logs) < limit:
             data = requests.get(
-                f"https://clouddata.scratch.mit.edu/logs?projectid={project_id}&limit={limit}&offset={offset}"
+                f"https://clouddata.scratch.mit.edu/logs?projectid={project_id}&limit={limit}&offset={offset}",
+                timeout=10
             ).json()
             logs.extend(
                 data
@@ -199,15 +226,15 @@ class CloudConnection:
             )
         except ConnectionError as e:
             raise e
-        except Exception:
+        except Exception as e:
             if not self.reconnect:
                 raise ConnectionError(
                     "There was an error while setting the cloud variable."
-                )
+                ) from e
             if retry == 1:
                 raise ConnectionError(
                     "There was an error while setting the cloud variable."
-                )
+                ) from e
             self._connect()
             self._set_variable(name=name, value=value, retry=retry - 1)
 
@@ -297,7 +324,7 @@ class CloudConnection:
         while self.thread_running:
             try:
                 self.receive_new_data()
-            except Exception as e:
+            except Exception:
                 while self.thread_running:
                     try:
                         self._connect()
@@ -327,7 +354,7 @@ class CloudConnection:
             try:
                 i(data)
                 amount += 1
-            except Exception as e:
+            except Exception:
                 warnings.warn(
                     f"There was an exception while trying to process an event: {traceback.format_exc()}",
                     self.warning_type
@@ -398,10 +425,11 @@ class TwCloudConnection(CloudConnection):
         except Exception as e:
             if retry == 1:
                 raise ConnectionError(
-                    f"There was an error while connecting to the cloud server: {e}"
-                )
+                    f"There was an error while connecting to the cloud server."
+                ) from e
             self._connect(cloud_host=cloud_host, retry=retry - 1)
 
+    @staticmethod
     def get_cloud_logs(*args, **kwargs):
         raise NotSupported("This can't be used on turbowarp.")
 

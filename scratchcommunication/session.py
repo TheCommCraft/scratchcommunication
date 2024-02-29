@@ -73,7 +73,8 @@ class Session:
                     cookies={
                         "scratchcsrftoken": "a",
                         "scratchlanguage": "en"
-                    }
+                    },
+                    timeout=10
                 ).headers["Set-Cookie"]).group())
             )
         except AttributeError:
