@@ -1,9 +1,9 @@
 from .cloud import CloudConnection
 from . import security as sec
 from typing import Union, Any
-import random, time, traceback
+import random, time
 from itertools import islice
-from .exceptions import ErrorInCloudSocket, NotSupported
+from .exceptions import NotSupported
 
 alphabet = "abcdefghijklmnopqrstuvwxyz"
 special_characters = " .,-:;_'#!\"§$%&/()=?{[]}\\0123456789<>ß*"
@@ -22,7 +22,6 @@ class CloudSocketClient:
     """
     Class for connecting with cloud sockets
     """
-    pass
 
 class BaseCloudSocket:
     """
@@ -42,20 +41,17 @@ class BaseCloudSocket:
         """
         Decodes data sent from a client
         """
-        pass
     
     @staticmethod
     def _encode(data : str):
         """
         Encodes data for a client
         """
-        pass
     
     def accept(self) -> tuple[Any, str]:
         """
         Returns a new client
         """
-        pass
 
 class BaseCloudSocketConnection:
     """
@@ -74,13 +70,11 @@ class BaseCloudSocketConnection:
         """
         Use for sending data to the client
         """
-        pass
     
     def send(self, data : str):
         """
         Use for receiving data from the client
         """
-        pass
 
 class CloudSocket(BaseCloudSocket):
     """
@@ -97,6 +91,9 @@ class CloudSocket(BaseCloudSocket):
         self.packet_size = packet_size
         
     def listen(self):
+        """
+        Start the cloud socket.
+        """
         @self.cloud.on("set")
         def on_packet(event):
             try:
