@@ -58,23 +58,25 @@ class BaseCloudSocketConnection:
     Base Class for handling incoming connections from a cloud socket
     """
     def __init__(self, *, cloud_socket : BaseCloudSocket, client_id : str, username : str = None, security : str = None):
-        raise NotSupported
+        raise NotImplementedError
     
     def __enter__(self):
-        pass
+        raise NotImplementedError
     
     def __exit__(self, exc_type, exc_value, traceback):
-        pass
+        raise NotImplementedError
     
     def recv(self) -> str:
         """
         Use for sending data to the client
         """
+        raise NotImplementedError
     
     def send(self, data : str):
         """
         Use for receiving data from the client
         """
+        raise NotImplementedError
 
 class CloudSocket(BaseCloudSocket):
     """
@@ -156,7 +158,10 @@ class CloudSocket(BaseCloudSocket):
                     
                 # New user
                     
-                client_username = event.user
+                try:
+                    client_username = event.user
+                except NotSupported:
+                    client_username = None
                 client_obj = CloudSocketConnection(cloud_socket=self, client_id=client, username=client_username, security=key)
                 self.clients[client] = client_obj
                 self.new_clients.append((client_obj, client_username))
@@ -199,7 +204,7 @@ class CloudSocket(BaseCloudSocket):
         """
         Returns a new client
         """
-        endtime = time.time() + timeout if timeout else None
+        endtime = time.time() + timeout if timeout is not None else None
         while (not self.new_clients) and (timeout is None or time.time() < endtime): 
             pass
         try:
@@ -263,8 +268,8 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         Use for receiving data from the client
         timeout defaults to 10 (seconds) but can be set to None if you do not want timeout.
         """
-        endtime = time.time() + timeout if timeout else None
-        while (not self.new_msgs) and (timeout is None or time.time() < endtime): 
+        endtime = time.time() + timeout if timeout is not None else None
+        while (not self.new_msgs) and (timeout is None or time.time() < endtime):
             pass
         try:
             return self.new_msgs.pop(0).message
