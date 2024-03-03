@@ -197,7 +197,10 @@ class CloudSocket(BaseCloudSocket):
         """
         encoded = "1"
         for char in data:
-            encoded += char_to_idx[char]
+            try:
+                encoded += char_to_idx[char]
+            except KeyError:
+                encoded += char_to_idx["?"]
         return int(encoded)
     
     def accept(self, timeout : Union[float, None] = 10) -> tuple[BaseCloudSocketConnection, str]:
