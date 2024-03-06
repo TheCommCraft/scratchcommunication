@@ -5,7 +5,7 @@ with open("README.md", encoding="utf-8") as f:
 
 setup(
     name='scratchcommunication',
-    version='2.1.2',
+    version='2.2.0',
     author='Gine Mosild',
     author_email='thecommcraft@gmail.com',
     description='A python module for communicating with scratch projects',
@@ -27,6 +27,8 @@ setup(
         'requests',
         'websocket-client',
         'func-timeout',
+        'pycryptodome'
+        'attrs'
     ],
     python_requires='>=3.6',
 )
