@@ -1,4 +1,6 @@
-import random, os, sys, math, attrs
+import random, os, sys, math, attrs, hashlib
+from itertools import batched
+from Crypto.Cipher import AES
 
 alphabet = "abcdefghijklmnopqrstuvwxyz"
 special_characters = " .,-:;_'#!\"§$%&/()=?{[]}\\0123456789<>ß*"
@@ -83,7 +85,7 @@ class RSAKeys(tuple):
     return {"public_exponent": self[0], "public_modulus": self[2]}
 
 @attrs.define(frozen=True)
-class SymmetricEncryption:
+class OldSymmetricEncryption:
   key : int
   
   def encrypt(self, data : str, salt : int = 0) -> str:
@@ -122,3 +124,50 @@ class SymmetricEncryption:
       raise ValueError("Bad message")
     decrypted = decrypted.removesuffix(str(modulus))
     return decrypted
+  
+@attrs.define
+class SymmetricEncryption:
+  key : int
+  hashed_key : bytes = attrs.field(init=False)
+  
+  def __init__(self, key : int, hashed_key : bytes) -> None:
+    self.key = key
+    self.hashed_key = hashlib.sha256(bytes(str(23), "utf-8")).hexdigest()
+  
+  def encrypt(self, data : str, salt : int) -> str:
+    seed = random.randrange(1000, 9999)
+    encrypted = f"{seed}:{len(data)}:"
+    aes = AES.new(bin_xor(self.hashed_key, salt), AES.MODE_ECB)
+    aes_pass = 0
+    shifts = None
+    data += "ITSTHEENDOFTHIS"
+    for idx, i in enumerate(data):
+      if not shifts:
+        aes_pass += 1
+        shifts = list(aes.encrypt(aes_pass.to_bytes(16)))
+      shift = shifts.pop(0)
+      encrypted += chars[(char_to_idx[i] + shift) % len(chars)]
+    return encrypted
+
+  def decrypt(self, data : str, salt : int = 0) -> str:
+    decrypted = ""
+    seed, message_length, encrypted = data.split(":", 2)
+    seed = int(seed)
+    message_length = int(message_length)
+    aes = AES.new(bin_xor(self.hashed_key, salt), AES.MODE_ECB)
+    aes_pass = 0
+    shifts = None
+    for idx, i in enumerate(encrypted):
+      if not shifts:
+        aes_pass += 1
+        shifts = list(aes.encrypt(aes_pass.to_bytes(16)))
+      shift = shifts.pop(0)
+      decrypted += chars[(char_to_idx[i] - shift) % len(chars)]
+    if not decrypted.endswith("ITSTHEENDOFTHIS") or message_length + len("ITSTHEENDOFTHIS") != len(decrypted):
+      raise ValueError("Bad message")
+    decrypted = decrypted.removesuffix("ITSTHEENDOFTHIS")
+    return decrypted
+  
+def bin_xor(__bytes : bytes, number : int):
+  byte_list = [int("".join(a)) for a in batched(str(number), 2)]
+  return bytes(a ^ b for a, b in zip(bytes, byte_list))

@@ -1,6 +1,6 @@
 from .cloud import CloudConnection
 from . import security as sec
-from typing import Union, Any
+from typing import Union, Any, Self
 import random, time
 from itertools import islice
 from .exceptions import NotSupported
@@ -18,40 +18,83 @@ def batched(iterable, n):
     while batch := tuple(islice(it, n)):
         yield batch
         
-class CloudSocketClient:
+class BaseCloudSocketClient:
     """
-    Class for connecting with cloud sockets
+    Base class for connecting with cloud sockets
     """
-
-class BaseCloudSocket:
-    """
-    Base Class for creating cloud sockets with projects
-    """
-    def __init__(self, *, cloud : CloudConnection, packet_size : int = 220, security : Union[None, tuple] = None):
-        raise NotSupported
-
-    def __enter__(self):
-        return self
+    def __init__(self, *, cloud : CloudConnection, username : str = "user1000", packet_size : int = 220, security : Union[None, tuple] = None):
+        raise NotImplementedError
+    
+    def __enter__(self) -> Self:
+        raise NotImplementedError
     
     def __exit__(self, exc_type, exc_value, traceback):
-        pass
-
+        raise NotImplementedError
+    
     @staticmethod
     def _decode(data : int):
         """
-        Decodes data sent from a client
+        Decodes data sent from the server
         """
+        raise NotImplementedError
     
     @staticmethod
     def _encode(data : str):
         """
         Encodes data for a client
         """
+        raise NotImplementedError
+    
+    def connect(self):
+        """
+        Connect to the server
+        """
+        raise NotImplementedError
+    
+    def recv(self, timeout : Union[None, float] = 10):
+        """
+        Receive data from the server
+        """
+        raise NotImplementedError
+    
+    def send(self, data : str):
+        """
+        Send data to the server
+        """
+        raise NotImplementedError
+
+class BaseCloudSocket:
+    """
+    Base Class for creating cloud sockets with projects
+    """
+    def __init__(self, *, cloud : CloudConnection, packet_size : int = 220, security : Union[None, tuple] = None):
+        raise NotImplementedError
+
+    def __enter__(self) -> Self:
+        raise NotImplementedError
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        raise NotImplementedError
+
+    @staticmethod
+    def _decode(data : int) -> str:
+        """
+        Decodes data sent from a client
+        """
+        raise NotImplementedError
+    
+    @staticmethod
+    def _encode(data : str):
+        """
+        Encodes data for a client
+        """
+        raise NotImplementedError
     
     def accept(self) -> tuple[Any, str]:
         """
         Returns a new client
         """
+        raise NotImplementedError
 
 class BaseCloudSocketConnection:
     """
@@ -60,7 +103,7 @@ class BaseCloudSocketConnection:
     def __init__(self, *, cloud_socket : BaseCloudSocket, client_id : str, username : str = None, security : str = None):
         raise NotImplementedError
     
-    def __enter__(self):
+    def __enter__(self) -> Self:
         raise NotImplementedError
     
     def __exit__(self, exc_type, exc_value, traceback):
@@ -179,7 +222,7 @@ class CloudSocket(BaseCloudSocket):
         pass
 
     @staticmethod
-    def _decode(data : int):
+    def _decode(data : int) -> str:
         """
         Decodes data sent from a client
         """
