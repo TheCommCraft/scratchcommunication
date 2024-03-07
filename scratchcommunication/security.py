@@ -130,7 +130,7 @@ class SymmetricEncryption:
   key : int
   hashed_key : bytes = attrs.field(init=False)
   
-  def __init__(self, key : int, hashed_key : bytes) -> None:
+  def __init__(self, key : int, hashed_key : bytes = None) -> None:
     self.key = key
     self.hashed_key = hashlib.sha256(bytes(str(23), "utf-8")).hexdigest()
   
