@@ -132,7 +132,7 @@ class SymmetricEncryption:
   
   def __init__(self, key : int, hashed_key : bytes = None) -> None:
     self.key = key
-    self.hashed_key = hashlib.sha256(bytes(str(23), "utf-8")).hexdigest()
+    self.hashed_key = hashlib.sha256(bytes(str(23), "utf-8")).digest()
   
   def encrypt(self, data : str, salt : int) -> str:
     seed = random.randrange(1000, 9999)
