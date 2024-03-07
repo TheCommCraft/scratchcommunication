@@ -170,4 +170,4 @@ class SymmetricEncryption:
   
 def bin_xor(__bytes : bytes, number : int):
   byte_list = [int("".join(a)) for a in batched(str(number), 2)]
-  return bytes(a ^ b for a, b in zip(bytes, byte_list))
+  return bytes(a ^ b for a, b in zip(__bytes, byte_list))
