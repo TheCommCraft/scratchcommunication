@@ -283,7 +283,7 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         """
         Use for sending data to the client if secure
         """
-        packets = ["".join(i) for i in batched(data, self.cloud_socket.packet_size // 2 - 15)]
+        packets = ["".join(i) for i in batched(data, self.cloud_socket.packet_size // 2 - 25)]
         packet_idx = 0
         for packet in packets[:-1]:
             salt = int(time.time() * 100)
