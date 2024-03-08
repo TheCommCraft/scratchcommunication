@@ -391,7 +391,6 @@ class TwCloudConnection(CloudConnection):
         accept_strs : bool = False
     ):
         super().__init__(
-            self,
             project_id=project_id, 
             username=username,
             quickaccess=quickaccess,
