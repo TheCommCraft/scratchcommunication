@@ -15,3 +15,6 @@ class ErrorInCloudSocket(RuntimeWarning):
 
 class StopException(BaseException):
     pass
+
+class EventExpiredError(Exception):
+    pass
