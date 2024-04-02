@@ -410,7 +410,7 @@ class TwCloudConnection(CloudConnection):
     def __init__(
         self, 
         *, 
-        project_id : int, 
+        project_id : str, 
         username : str = "player1000", 
         quickaccess : bool = False, 
         reconnect : bool = True, 
