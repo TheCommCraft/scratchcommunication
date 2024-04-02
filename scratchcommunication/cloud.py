@@ -1,6 +1,6 @@
 from typing import Literal, Union, Any
-from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException
-import json, time, requests, warnings, traceback
+from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException, EventExpiredError
+import json, time, requests, warnings, traceback, secrets
 from websocket import WebSocket
 from func_timeout import StoppableThread
 
@@ -8,6 +8,7 @@ NoneType = type(None)
 CloudConnection = None
 
 class Event:
+    _id : int = None
     value : Union[float, int, bool] = None
     var : str = None
     name : str = None
@@ -17,22 +18,27 @@ class Event:
         self.__dict__.update(entries)
         self._data = None
         self.project = getattr(self, "project")
+        self._id = secrets.randbits(16)
+        
 
     @property
     def data(self):
         if not hasattr(self, "var"):
             raise NotSupported("No setting")
         if not self._data:
-            self._data = list(
-                filter(
-                    lambda x: x["value"] == self.value,
-                    self.project.get_cloud_logs(
-                        project_id=self.project.project_id,
-                        filter_by_name=self.var,
-                        filter_by_name_literal=True,
-                    ),
-                )
-            )[0]
+            try:
+                self._data = list(
+                    filter(
+                        lambda x: x["value"] == self.value,
+                        self.project.get_cloud_logs(
+                            project_id=self.project.project_id,
+                            filter_by_name=self.var,
+                            filter_by_name_literal=True,
+                        ),
+                    )
+                )[self.project.get_age_of_event(self)]
+            except IndexError:
+                raise EventExpiredError("Event expired. (Cannot fetch data from Scratch server)")
         return self._data
 
     @property
@@ -42,6 +48,9 @@ class Event:
     @property
     def timestamp(self):
         return self.data["timestamp"]
+    
+    def hash(self):
+        return hash(self._id)
 
 
 class CloudConnection:
@@ -62,6 +71,8 @@ class CloudConnection:
     wait_until : Union[float, int]
     receive_from_websocket : bool
     data_reception : Any
+    event_order : dict[Union[float, int, bool], dict[Event, int]]
+    processed_events : list[Event]
     def __init__(
         self,
         *,
@@ -75,6 +86,8 @@ class CloudConnection:
         daemon_thread : bool = False,
         connect : bool = True
     ):
+        self.event_order = {}
+        self.processed_events = []
         self.thread_running = True
         self.warning_type = warning_type
         self.project_id = project_id
@@ -332,6 +345,15 @@ class CloudConnection:
                         break
                     except Exception:
                         pass
+                    
+    def get_age_of_event(self, event : Event) -> int:
+        """
+        Do not use.
+        """
+        try:
+            return len(self.event_order.get(event.value, {})) - self.event_order.get(event.value, {})[event] - 1
+        except KeyError:
+            return 0
 
     def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event], **entries) -> int:
         """
@@ -341,7 +363,15 @@ class CloudConnection:
         data.project = self
         if isinstance(event, Event):
             event = event.type
-        return self._emit_event(event, data) + self._emit_event("any", data)
+        amount = self._emit_event(event, data) + self._emit_event("any", data)
+        if not (amount or self.event_order.get(data.value)):
+            return amount
+        if not self.event_order.get(data.value):
+            self.event_order[data.value] = {}
+        if amount:
+            self.processed_events.append(data)
+        self.event_order[data.value][data] = len(self.event_order[data.value])
+        return amount
 
     def _emit_event(self, event : Literal["set", "delete", "connect", "create", "any"], data : Event) -> int:
         """
