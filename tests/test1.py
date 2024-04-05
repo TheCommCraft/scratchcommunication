@@ -17,7 +17,7 @@ donit = set()
 def on_set(event : Event):
     if event.value in donit:
         try:
-            print(event.user, event.project.processed_events[-2].user)
+            print(event.timestamp, event.project.processed_events[-2].timestamp)
         except KeyError:
             print(event.project.event_order)
             print(event.project.event_order[event.value])
