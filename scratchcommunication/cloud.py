@@ -1,6 +1,6 @@
 from typing import Literal, Union, Any
 from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException, EventExpiredError
-import json, time, requests, warnings, traceback, secrets
+import json, time, requests, warnings, traceback, secrets, sys
 from websocket import WebSocket
 from func_timeout import StoppableThread
 
@@ -73,6 +73,7 @@ class CloudConnection:
     data_reception : Any
     event_order : dict[Union[float, int, bool], dict[Event, int]]
     processed_events : list[Event]
+    keep_all_events : bool
     def __init__(
         self,
         *,
@@ -84,8 +85,10 @@ class CloudConnection:
         receive_from_websocket : bool = True,
         warning_type : type[Warning] = ErrorInEventHandler,
         daemon_thread : bool = False,
-        connect : bool = True
+        connect : bool = True,
+        keep_all_events : bool = False
     ):
+        self.keep_all_events = keep_all_events
         self.event_order = {}
         self.processed_events = []
         self.thread_running = True
@@ -151,6 +154,7 @@ class CloudConnection:
                 cookie="scratchsessionsid=" + self.session.session_id + ";",
                 origin="https://scratch.mit.edu",
                 enable_multithread=True,
+                timeout=5
             )
             self.handshake()
             self.emit_event("connect", timestamp=time.time())
@@ -313,6 +317,7 @@ class CloudConnection:
         Use for receiving new cloud data.
         """
         data = [json.loads(j) for j in self.websocket.recv().split("\n") if j]
+        
         for i in data:
             i["var"] = i["name"]
             i["name"] = i["name"].replace("☁ ", "", 1)
@@ -329,22 +334,27 @@ class CloudConnection:
         """
         while self.thread_running:
             try:
-                self._connect()
                 self.receive_new_data(first=True)
                 break
-            except Exception:
+            except TimeoutError:
                 pass
+            except Exception:
+                self._connect()
         while self.thread_running:
             try:
                 self.receive_new_data()
+            except TimeoutError:
+                pass
             except Exception:
+                self._connect()
                 while self.thread_running:
                     try:
-                        self._connect()
                         self.receive_new_data(first=True)
                         break
-                    except Exception:
+                    except TimeoutError:
                         pass
+                    except Exception:
+                        self._connect()
                     
     def get_age_of_event(self, event : Event) -> int:
         """
@@ -353,7 +363,7 @@ class CloudConnection:
         try:
             return len(self.event_order.get(event.value, {})) - self.event_order.get(event.value, {})[event] - 1
         except KeyError:
-            return 0
+            raise ValueError("No such event")
 
     def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event], **entries) -> int:
         """
@@ -363,15 +373,26 @@ class CloudConnection:
         data.project = self
         if isinstance(event, Event):
             event = event.type
-        amount = self._emit_event(event, data) + self._emit_event("any", data)
-        if not (amount or self.event_order.get(data.value)):
-            return amount
         if not self.event_order.get(data.value):
             self.event_order[data.value] = {}
-        if amount:
-            self.processed_events.append(data)
         self.event_order[data.value][data] = len(self.event_order[data.value])
+        amount = self._emit_event(event, data) + self._emit_event("any", data)
+        self.processed_events.append(data)
+        if not self.keep_all_events:
+            self.garbage_disposal_of_events()
         return amount
+    
+    def garbage_disposal_of_events(self, force_disposal : bool = False) -> int:
+        """
+        Dispose of all unused events
+        """
+        if self.keep_all_events and not force_disposal:
+            warnings.warn("Attempted to dispose of all events with keep_all_events enabled. Try to set force_disposal=True in order to force garbage disposal.", UserWarning)
+            return
+        for event in self.processed_events.copy():
+            if sys.getrefcount(event) <= 5:
+                self.processed_events.remove(event)
+                self.event_order.get(event.value).pop(event)
 
     def _emit_event(self, event : Literal["set", "delete", "connect", "create", "any"], data : Event) -> int:
         """
@@ -418,7 +439,8 @@ class TwCloudConnection(CloudConnection):
         warning_type : type[Warning] = ErrorInEventHandler,
         daemon_thread : bool = False, 
         cloud_host : str = "wss://clouddata.turbowarp.org/", 
-        accept_strs : bool = False
+        accept_strs : bool = False,
+        keep_all_events : bool = False
     ):
         super().__init__(
             project_id=project_id, 
@@ -428,7 +450,8 @@ class TwCloudConnection(CloudConnection):
             receive_from_websocket=receive_from_websocket,
             warning_type=warning_type,
             daemon_thread=daemon_thread,
-            connect=False
+            connect=False,
+            keep_all_events=keep_all_events
         )
         self.cloud_host = cloud_host
         self.accept_strs = accept_strs
@@ -448,7 +471,7 @@ class TwCloudConnection(CloudConnection):
             if cloud_host is not None:
                 self.cloud_host = cloud_host
             self.websocket = WebSocket()
-            self.websocket.connect(self.cloud_host, enable_multithread=True, timeout=10)
+            self.websocket.connect(self.cloud_host, enable_multithread=True, timeout=5)
             self.handshake()
             self.emit_event("connect")
         except Exception as e:

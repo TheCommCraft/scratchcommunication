@@ -96,7 +96,8 @@ tw_cloud = scratchcommunication.TwCloudConnection(
     receive_from_websocket = True, 
     warning_type = ErrorInEventHandler, 
     cloud_host = "wss://clouddata.turbowarp.org/", # (Optional) Changes the host used for cloud variables.
-    accept_strs = False # (Optional) Allows you to set cloud variables to strings. Only works if cloud host allows it.
+    accept_strs = False, # (Optional) Allows you to set cloud variables to strings. Only works if cloud host allows it.
+    keep_all_events = False # (Optional) Allows you to disable automatic garbage disposal of events. Events can still be manually disposed of. Unrecommended because it will slowly but surely fill up a lot of memory if events aren't disposed of.
 )
 ```
 
@@ -111,7 +112,8 @@ tw_cloud = session.create_turbowarp_cloudconnection(
     receive_from_websocket = True, 
     warning_type = ErrorInEventHandler, 
     cloud_host = "wss://clouddata.turbowarp.org/", 
-    accept_strs = False 
+    accept_strs = False,
+    keep_all_events = False
 )
 ```
 
@@ -177,6 +179,14 @@ If you want to stop the background thread used for events and variable updates, 
 
 ```python
 cloud.stop_thread()
+```
+
+You can also manually dispose of events (which normally happens automatically).
+
+```python
+cloud.garbage_disposal_of_events(
+    force_disposal = False # (Optional) Is needed to be True if automatic garbage disposal is disabled.
+)
 ```
 
 If you set `daemon_thread` to `True` when creating the object, the background thread will terminate when your process ends.
