@@ -191,9 +191,71 @@ cloud.garbage_disposal_of_events(
 
 If you set `daemon_thread` to `True` when creating the object, the background thread will terminate when your process ends.
 
+# Cloud requests
+
+Cloud requests are based on cloud sockets and allow you to have your project send requests to your server which it automatically responds to.
+
+## Creating a cloud requests handler
+
+To use cloud requests, you first need to create a [cloud socket](#cloud-sockets) to your project and then a cloud requests handler which uses it to communicate to your Scratch project.
+
+```python
+cloud_requests = scratchcommunication.RequestHandler(
+    cloud_socket = cloud_socket, # The cloud socket to communicate with the project
+    uses_thread = False # (Optional) Determines if the cloud requests handler uses a thread for execution normally.
+)
+```
+
+## Create requests
+
+You can use the method `add_request` to add a request or the `request` wrapper.
+
+```python
+cloud_requests.add_request(
+    your_function, # Replace this with the function you want to use.
+    name = None, # (Optional) Change the name of the function.
+    auto_convert = False, # (Optional) Whether to automatically convert all arguments and return values related to the request based on its type annotations
+    allow_python_syntax = True, # (Optional) Whether to allow the frontend requests in python syntax (e.g. func(arg1, arg2, kwarg1=val1, kwarg2=val2, ...)). This has no backsides.
+    thread = False # (Optional) Determines if the request's function and response should be in a different thread. This might cost a lot of processing power.  
+)
+
+# OR
+
+@cloud_requests.request
+def func(arg1, arg2):
+    pass # Write your own function
+
+# OR
+
+@cloud_requests.request(name=None, auto_convert=False, allow_python_syntax=True, thread=False)
+def func(arg1, arg2):
+    pass # Write your own function
+```
+
+## Starting the cloud requests handler
+
+Start the cloud requests handler using the `start` method.
+
+```python
+cloud_requests.start(
+    thread = None, # (Optional) Whether to use a thread; If None then it defaults to the used_thread value used at creation of the cloud requests handler
+    daemon_thread = False # (Optional) Whether the thread is daemon
+)
+```
+
+## Stopping the cloud requests handler
+
+Stop the cloud requests handler using the `stop` method. (Only if the cloud requests handler is running in a thread)
+
+```python
+cloud_requests.stop()
+```
+
 # Cloud sockets
 
 Cloud sockets (inspired by sockets) are connections from a scratch project to a python program where both sides can send data to one another and there is even the possibility to add security to the connection using RSA.
+
+Warning: Cloud sockets are low level. They allow you to do more but are more difficult to use. You shouldn't use them directly. You might want to use them in [cloud requests](#cloud-requests) instead.
 
 ## Creating a cloud socket
 

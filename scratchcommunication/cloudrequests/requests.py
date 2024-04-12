@@ -20,7 +20,7 @@ class RequestHandler(BaseRequestHandler):
         self.current_client = None
         self.current_client_username = None
         
-    def request(self, func : FunctionType = None, *, name : str = None, auto_convert : bool = True, allow_python_syntax : bool = True, thread : bool = False) -> Union[FunctionType, None]:
+    def request(self, func : FunctionType = None, *, name : str = None, auto_convert : bool = False, allow_python_syntax : bool = True, thread : bool = False) -> Union[FunctionType, None]:
         """
         Decorator for adding requests.
         """
@@ -33,7 +33,7 @@ class RequestHandler(BaseRequestHandler):
             return
         return lambda x : self.request(x, name=name, auto_convert=auto_convert, allow_python_syntax=allow_python_syntax)
     
-    def add_request(self, func : FunctionType, *, name : str = None, auto_convert : bool = True, allow_python_syntax : bool = True, thread : bool = False):
+    def add_request(self, func : FunctionType, *, name : str = None, auto_convert : bool = False, allow_python_syntax : bool = True, thread : bool = False):
         """
         Method for adding requests.
         """
