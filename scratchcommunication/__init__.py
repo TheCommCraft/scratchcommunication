@@ -1,3 +1,7 @@
+"""
+Module for communicating with scratch projects.
+"""
+
 from .session import *
 from .cloud import *
 from .cloudrequests import RequestHandler
