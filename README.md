@@ -193,7 +193,7 @@ If you set `daemon_thread` to `True` when creating the object, the background th
 
 # Cloud requests
 
-Cloud requests are based on cloud sockets and allow you to have your project send requests to your server which it automatically responds to.
+Cloud requests are based on cloud sockets and allow you to have your project send requests to your server which it automatically responds to. You'll need to put the first sprite from this [project](https://scratch.mit.edu/projects/884190099/) in your project for cloud requests to work.
 
 ## Creating a cloud requests handler
 
@@ -250,6 +250,20 @@ Stop the cloud requests handler using the `stop` method. (Only if the cloud requ
 ```python
 cloud_requests.stop()
 ```
+
+## Encrypted data transmition
+
+See [Cloud Socket Security](#cloud-socket-security) for this.
+
+## Client side
+
+If you haven't already, you'll need to put the first sprite from this [project](https://scratch.mit.edu/projects/884190099/) in your project for cloud requests to work.
+
+You'll always first need to connect on your client side for your messages to work. This is done using the "[cloud socket] connect securely" or "[cloud socket] connect insecurely" blocks. 
+
+When you are connected, you can use the block "[cloud requests] initiate new request (%s)" to initiate a new request with its name. The name must not contain spaces. When you have initiated a new request, you can add arguments to the request by using the "[cloud requests] add argument (%s)" block. When you are done creating the request, you can use the block "[cloud requests] send iniated request" to send it and wait for the response.
+
+The received data will be in the variable "[cloud] reception". You can change the timeout using the "# TIMEOUT" variable (If you don't need a timeout, just let it stay). You can also change the packet size using the "# PACKET SIZE" variable, but I would advise against this if you are not using turbowarp.
 
 # Cloud sockets
 
@@ -313,6 +327,16 @@ In order to stop the cloud socket from running anymore you can you `scratchcommu
 ```python
 cloud_socket.stop()
 ```
+
+## Client side
+
+If you haven't already, you'll need to put the first sprite from this [project](https://scratch.mit.edu/projects/884190099/) in your project for cloud socket to work.
+
+You'll always first need to connect on your client side for your messages to work. This is done using the "[cloud socket] connect securely" or "[cloud socket] connect insecurely" blocks. 
+
+Afterwards, you can use the "[cloud socket] send (%s)" block and the "[cloud socket] recv" block. 
+
+The received data will be in the variable "[cloud] reception". You can change the timeout using the "# TIMEOUT" variable (If you don't need a timeout, just let it stay). You can also change the packet size using the "# PACKET SIZE" variable, but I would advise against this if you are not using turbowarp.
 
 ## Cloud Socket Security
 
