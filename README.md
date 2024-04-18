@@ -322,7 +322,7 @@ client.send("Hello!")
 
 **Your messages will be public and easy to fake in both direction unless you activate [security](#cloud-socket-security).**
 
-In order to stop the cloud socket from running anymore you can you `scratchcommunication.cloud_socket.CloudSocket.stop`
+In order to stop the cloud socket from running anymore you can use `scratchcommunication.cloud_socket.CloudSocket.stop`
 
 ```python
 cloud_socket.stop()
