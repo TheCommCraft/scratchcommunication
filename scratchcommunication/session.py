@@ -107,11 +107,11 @@ class Session:
         '''
         return cloud_socket.CloudSocket(cloud=self.create_cloudconnection(project_id, warning_type=ErrorInCloudSocket, **(cloudconnection_kwargs if cloudconnection_kwargs else {})), packet_size=packet_size, security=security, **kwargs)
 
-    def create_turbowarp_cloud_socket(self, project_id : int, *, packet_size : int = 90000, cloudconnection_kwargs : dict = None, security : tuple = None, **kwargs):
+    def create_turbowarp_cloud_socket(self, contact_info : str, project_id : int, *, packet_size : int = 90000, cloudconnection_kwargs : dict = None, security : tuple = None, **kwargs):
         '''
         Create a cloud socket to a turbowarp project.
         '''
-        return cloud_socket.CloudSocket(cloud=self.create_tw_cloudconnection(project_id, warning_type=ErrorInCloudSocket, **(cloudconnection_kwargs if cloudconnection_kwargs else {})), packet_size=packet_size, security=security, **kwargs)
+        return cloud_socket.CloudSocket(cloud=self.create_tw_cloudconnection(project_id, contact_info=contact_info, warning_type=ErrorInCloudSocket, **(cloudconnection_kwargs if cloudconnection_kwargs else {})), packet_size=packet_size, security=security, **kwargs)
     
     def create_tw_cloud_socket(self, *args, **kwargs):
         '''
