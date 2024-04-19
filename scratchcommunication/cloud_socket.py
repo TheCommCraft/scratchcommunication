@@ -142,6 +142,7 @@ class CloudSocket(BaseCloudSocket):
         @self.cloud.on("set")
         def on_packet(event):
             try:
+                assert event.type == "set"
                 assert event.name == "FROM_CLIENT"
                 salt = 0
                 value = event.value.replace("-", "")
