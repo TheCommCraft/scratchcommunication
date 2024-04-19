@@ -93,7 +93,7 @@ class Session:
         Create a cloud connection to a turbowarp project.
         '''
         username = username or self.username
-        return cloud.TwCloudConnection(project_id=project_id, username=username, **kwargs)
+        return cloud.TwCloudConnection(project_id=project_id, username=username, session=self, **kwargs)
     
     def create_tw_cloudconnection(self, *args, **kwargs):
         '''

@@ -1,4 +1,5 @@
-from typing import Literal, Union, Any
+from typing import Literal, Union, Any, Protocol
+from collections.abc import Callable
 from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException, EventExpiredError
 import json, time, requests, warnings, traceback, secrets, sys
 from websocket import WebSocket
@@ -7,12 +8,17 @@ from func_timeout import StoppableThread
 NoneType = type(None)
 CloudConnection = None
 
+class EventDispatcher(Protocol):
+    def __call__(self, data : dict, **entries) -> None:
+        pass
+
 class Event:
     _id : int = None
     value : Union[float, int, bool] = None
     var : str = None
     name : str = None
     project : CloudConnection = None
+    type : str = None
     def __init__(self, _type: Literal["set", "delete", "connect", "create"], **entries):
         entries["type"] = _type
         self.__dict__.update(entries)
@@ -23,7 +29,9 @@ class Event:
 
     @property
     def data(self):
-        if not hasattr(self, "var"):
+        if not self.project.supports_cloud_logs:
+            raise NotSupported("Cloud connection does not support cloud logs.")
+        if self.type != "set":
             raise NotSupported("No setting")
         if not self._data:
             try:
@@ -74,11 +82,12 @@ class CloudConnection:
     event_order : dict[Union[float, int, bool], dict[Event, int]]
     processed_events : list[Event]
     keep_all_events : bool
+    supports_cloud_logs : bool
     def __init__(
         self,
         *,
         project_id : int,
-        session = None,
+        session : Any = None,
         username : str = None,
         quickaccess : bool = False,
         reconnect : bool = True,
@@ -88,6 +97,7 @@ class CloudConnection:
         connect : bool = True,
         keep_all_events : bool = False
     ):
+        self.supports_cloud_logs = True
         self.keep_all_events = keep_all_events
         self.event_order = {}
         self.processed_events = []
@@ -412,7 +422,7 @@ class CloudConnection:
                 )
         return amount
 
-    def on(self, event : Literal["set", "delete", "connect", "create", "any"]):
+    def on(self, event : Literal["set", "delete", "connect", "create", "any"]) -> Callable[[Callable[[Event], None]], EventDispatcher]:
         """
         Register a new event.
         """
@@ -423,16 +433,25 @@ class CloudConnection:
             else:
                 eventlist = self.events[event] = []
             eventlist.append(func)
+            def dispatcher(data : dict = None, **entries):
+                return self.emit_event(event, **data, **entries)
+            return dispatcher
 
         return wrapper
 
 
 class TwCloudConnection(CloudConnection):
+    """
+    Connect to a non scratch cloud server and set cloud variables.
+    """
+    contact_info : str
+    user_agent : str
     def __init__(
         self, 
         *, 
         project_id : str, 
         username : str = "player1000", 
+        session : Any = None, 
         quickaccess : bool = False, 
         reconnect : bool = True, 
         receive_from_websocket : bool = True, 
@@ -440,11 +459,13 @@ class TwCloudConnection(CloudConnection):
         daemon_thread : bool = False, 
         cloud_host : str = "wss://clouddata.turbowarp.org/", 
         accept_strs : bool = False,
-        keep_all_events : bool = False
+        keep_all_events : bool = False,
+        contact_info : str = None
     ):
         super().__init__(
             project_id=project_id, 
             username=username,
+            session=session,
             quickaccess=quickaccess,
             reconnect=reconnect,
             receive_from_websocket=receive_from_websocket,
@@ -453,6 +474,9 @@ class TwCloudConnection(CloudConnection):
             connect=False,
             keep_all_events=keep_all_events
         )
+        self.supports_cloud_logs = False
+        self.contact_info = contact_info or ("@"+session.username if session else "Anonymous")
+        self.user_agent = f"scratchcommunication - {self.contact_info}"
         self.cloud_host = cloud_host
         self.accept_strs = accept_strs
         self._connect()
@@ -471,7 +495,7 @@ class TwCloudConnection(CloudConnection):
             if cloud_host is not None:
                 self.cloud_host = cloud_host
             self.websocket = WebSocket()
-            self.websocket.connect(self.cloud_host, enable_multithread=True, timeout=5)
+            self.websocket.connect(self.cloud_host, enable_multithread=True, timeout=5, header={"user-agent": self.user_agent})
             self.handshake()
             self.emit_event("connect")
         except Exception as e:

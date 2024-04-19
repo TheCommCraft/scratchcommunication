@@ -97,7 +97,8 @@ tw_cloud = scratchcommunication.TwCloudConnection(
     warning_type = ErrorInEventHandler, 
     cloud_host = "wss://clouddata.turbowarp.org/", # (Optional) Changes the host used for cloud variables.
     accept_strs = False, # (Optional) Allows you to set cloud variables to strings. Only works if cloud host allows it.
-    keep_all_events = False # (Optional) Allows you to disable automatic garbage disposal of events. Events can still be manually disposed of. Unrecommended because it will slowly but surely fill up a lot of memory if events aren't disposed of.
+    keep_all_events = False, # (Optional) Allows you to disable automatic garbage disposal of events. Events can still be manually disposed of. Unrecommended because it will slowly but surely fill up a lot of memory if events aren't disposed of.
+    contact_info = None # (Optional) Allows you to give turbowarp your contact info. If you don't add any it defaults to your session username or nothing.
 )
 ```
 
@@ -113,7 +114,8 @@ tw_cloud = session.create_turbowarp_cloudconnection(
     warning_type = ErrorInEventHandler, 
     cloud_host = "wss://clouddata.turbowarp.org/", 
     accept_strs = False,
-    keep_all_events = False
+    keep_all_events = False,
+    contact_info = None
 )
 ```
 
