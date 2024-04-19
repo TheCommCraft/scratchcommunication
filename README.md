@@ -89,6 +89,7 @@ To connect to Turbowarps Cloud Variables you can use the `scratchcommunication.c
 
 ```python
 tw_cloud = scratchcommunication.TwCloudConnection(
+    contact_info = "Your contact info", # Specify some contact info. Turbowarp will block your connection otherwise.
     project_id = "Your project id here", 
     username = "player1000", # (Optional)
     quickaccess = False, 
@@ -97,8 +98,7 @@ tw_cloud = scratchcommunication.TwCloudConnection(
     warning_type = ErrorInEventHandler, 
     cloud_host = "wss://clouddata.turbowarp.org/", # (Optional) Changes the host used for cloud variables.
     accept_strs = False, # (Optional) Allows you to set cloud variables to strings. Only works if cloud host allows it.
-    keep_all_events = False, # (Optional) Allows you to disable automatic garbage disposal of events. Events can still be manually disposed of. Unrecommended because it will slowly but surely fill up a lot of memory if events aren't disposed of.
-    contact_info = None # (Optional) Allows you to give turbowarp your contact info. If you don't add any it defaults to your session username or nothing.
+    keep_all_events = False # (Optional) Allows you to disable automatic garbage disposal of events. Events can still be manually disposed of. Unrecommended because it will slowly but surely fill up a lot of memory if events aren't disposed of.
 )
 ```
 
@@ -106,6 +106,7 @@ Or you could connect from your session
 
 ```python
 tw_cloud = session.create_turbowarp_cloudconnection(
+    contact_info = "Your contact info",
     project_id = "Your project id here",
     username = None, # (Optional) Will default to your username
     quickaccess = False, 
@@ -114,10 +115,11 @@ tw_cloud = session.create_turbowarp_cloudconnection(
     warning_type = ErrorInEventHandler, 
     cloud_host = "wss://clouddata.turbowarp.org/", 
     accept_strs = False,
-    keep_all_events = False,
-    contact_info = None
+    keep_all_events = False
 )
 ```
+
+**Warning: You need to add sufficient contact_info for your turbowarp connection or it might not work!**
 
 To shorten it a bit you can also use `scratchcommunication.session.Session.create_tw_cloudconnection` instead of `scratchcommunication.session.Session.create_turbowarp_cloudconnection`.
 
@@ -290,6 +292,7 @@ You can also use Turbowarp for cloud sockets.
 
 ```python
 cloud_socket = session.create_turbowarp_cloud_socket( # session.create_tw_cloud_socket also works here
+    contact_info = "Your contact info",
     project_id = "Your project id here",
     packet_size = 220, # (Optional) I recommend leaving this value be if you only use Scratch and Turbowarp.
     cloudconnection_kwargs = None, # (Optional) Allows for adding keyword arguments for the Cloud Connection used in the cloud socket. Look at the documentation for Cloud Connection if you do not know which keyword arguments there are

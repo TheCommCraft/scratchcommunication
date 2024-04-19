@@ -460,7 +460,7 @@ class TwCloudConnection(CloudConnection):
         cloud_host : str = "wss://clouddata.turbowarp.org/", 
         accept_strs : bool = False,
         keep_all_events : bool = False,
-        contact_info : str = None
+        contact_info : str
     ):
         super().__init__(
             project_id=project_id, 
@@ -475,7 +475,8 @@ class TwCloudConnection(CloudConnection):
             keep_all_events=keep_all_events
         )
         self.supports_cloud_logs = False
-        self.contact_info = contact_info or ("@"+session.username if session else "Anonymous")
+        self.contact_info = contact_info or ((f"@{session.username} on scratch" if session else "Anonymous") if username == "player1000" else f"@{username} on scratch")
+        assert self.contact_info != "Anonymous", "You need to specify your contact_info for the turbowarp cloud."
         self.user_agent = f"scratchcommunication - {self.contact_info}"
         self.cloud_host = cloud_host
         self.accept_strs = accept_strs
@@ -495,7 +496,7 @@ class TwCloudConnection(CloudConnection):
             if cloud_host is not None:
                 self.cloud_host = cloud_host
             self.websocket = WebSocket()
-            self.websocket.connect(self.cloud_host, enable_multithread=True, timeout=5, header={"user-agent": self.user_agent})
+            self.websocket.connect(self.cloud_host, enable_multithread=True, timeout=5, header={"User-Agent": self.user_agent})
             self.handshake()
             self.emit_event("connect")
         except Exception as e:
