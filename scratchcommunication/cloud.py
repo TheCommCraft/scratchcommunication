@@ -1,6 +1,7 @@
 from typing import Literal, Union, Any, Protocol
 from collections.abc import Callable
 from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException, EventExpiredError
+import scratchcommunication
 import json, time, requests, warnings, traceback, secrets, sys
 from websocket import WebSocket
 from func_timeout import StoppableThread
@@ -477,7 +478,7 @@ class TwCloudConnection(CloudConnection):
         self.supports_cloud_logs = False
         self.contact_info = contact_info or ((f"@{session.username} on scratch" if session else "Anonymous") if username == "player1000" else f"@{username} on scratch")
         assert self.contact_info != "Anonymous", "You need to specify your contact_info for the turbowarp cloud."
-        self.user_agent = f"scratchcommunication - {self.contact_info}"
+        self.user_agent = f"scratchcommunication/{scratchcommunication.__version_number__} - {self.contact_info}"
         self.cloud_host = cloud_host
         self.accept_strs = accept_strs
         self._connect()
