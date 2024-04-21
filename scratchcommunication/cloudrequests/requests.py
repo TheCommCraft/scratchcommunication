@@ -98,6 +98,8 @@ class RequestHandler(BaseRequestHandler):
         return_converter = lambda x : x
         if request_handling_function.auto_convert:
             for idx, (arg, annotation) in enumerate(inspect.signature(request_handling_function).parameters.items()):
+                if not annotation.kind.value in [0, 1, 3]:
+                    continue
                 if inspect.Parameter.empty == annotation.annotation:
                     continue
                 if not arg in kwargs:
