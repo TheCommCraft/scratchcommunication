@@ -88,7 +88,7 @@ class Session:
         '''
         return cloud.CloudConnection(project_id=project_id, session=self, **kwargs)
     
-    def create_turbowarp_cloudconnection(self, project_id : int, *, username = None, **kwargs) -> cloud.TwCloudConnection:
+    def create_turbowarp_cloudconnection(self, project_id : str, *, username = None, **kwargs) -> cloud.TwCloudConnection:
         '''
         Create a cloud connection to a turbowarp project.
         '''
@@ -107,7 +107,7 @@ class Session:
         '''
         return cloud_socket.CloudSocket(cloud=self.create_cloudconnection(project_id, warning_type=ErrorInCloudSocket, **(cloudconnection_kwargs if cloudconnection_kwargs else {})), packet_size=packet_size, security=security, **kwargs)
 
-    def create_turbowarp_cloud_socket(self, contact_info : str, project_id : int, *, packet_size : int = 90000, cloudconnection_kwargs : dict = None, security : tuple = None, **kwargs):
+    def create_turbowarp_cloud_socket(self, contact_info : str, project_id : str, *, packet_size : int = 90000, cloudconnection_kwargs : dict = None, security : tuple = None, **kwargs):
         '''
         Create a cloud socket to a turbowarp project.
         '''

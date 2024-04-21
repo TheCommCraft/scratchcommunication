@@ -2,7 +2,7 @@
 Submodule for handling incoming requests.
 """
 import re, warnings, ast, inspect, traceback
-from typing import Union, Mapping, Sequence, Any
+from typing import Union, Mapping, Sequence, Any, Iterable
 from types import FunctionType
 from func_timeout import StoppableThread
 from scratchcommunication.cloud_socket import CloudSocketConnection, CloudSocket
@@ -100,11 +100,15 @@ class RequestHandler(BaseRequestHandler):
                 if inspect.Parameter.empty == annotation.annotation:
                     continue
                 if not arg in kwargs:
+                    if not annotation.kind.value in [0, 1]:
+                        raise ValueError("Signature doesn't match")
                     try:
                         args[idx] = annotation.annotation(args[idx])
                     except IndexError:
                         pass
                     continue
+                if not annotation.kind.value in [1, 3]:
+                    raise ValueError("Signature doesn't match")
                 kwargs[arg] = annotation.annotation(kwargs[arg])
             if inspect.signature(request_handling_function).return_annotation != inspect.Signature.empty:
                 return_converter = inspect.signature(request_handling_function).return_annotation
