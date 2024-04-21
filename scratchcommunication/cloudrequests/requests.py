@@ -1,8 +1,8 @@
 """
 Submodule for handling incoming requests.
 """
-import re, warnings, ast, inspect, traceback
-from typing import Union, Mapping, Sequence, Any, Iterable
+import re, warnings, ast, inspect, traceback, time
+from typing import Union, Mapping, Sequence, Any
 from types import FunctionType
 from func_timeout import StoppableThread
 from scratchcommunication.cloud_socket import CloudSocketConnection, CloudSocket
@@ -43,7 +43,7 @@ class RequestHandler(BaseRequestHandler):
         func.thread = thread
         self.requests[func.__name__] = func
     
-    def start(self, *, thread : bool = None, daemon_thread : bool = False):
+    def start(self, *, thread : bool = None, daemon_thread : bool = False, duration : Union[float, int, None] = None):
         """
         Method for starting the request handler.
         """
@@ -54,7 +54,8 @@ class RequestHandler(BaseRequestHandler):
             self.thread.start()
             return
         clients : list[tuple[CloudSocketConnection, str]] = []
-        while True:
+        end_time = duration and (time.time() + duration)
+        while (not end_time) or time.time() < end_time:
             try:
                 try:
                     clients.append(self.cloud_socket.accept(timeout=0))
