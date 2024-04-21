@@ -243,7 +243,8 @@ Start the cloud requests handler using the `start` method.
 ```python
 cloud_requests.start(
     thread = None, # (Optional) Whether to use a thread; If None then it defaults to the used_thread value used at creation of the cloud requests handler
-    daemon_thread = False # (Optional) Whether the thread is daemon
+    daemon_thread = False, # (Optional) Whether the thread is daemon
+    duration = None # (Optional) How long to run the cloud requests
 )
 ```
 
