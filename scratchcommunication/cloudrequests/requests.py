@@ -79,11 +79,16 @@ class RequestHandler(BaseRequestHandler):
                                 name, args, kwargs = parse_normal_request(raw_req, req_name)
                             else:
                                 raise PermissionError("Python syntax is not allowed for this.")
+                    except Exception:
+                        response = "The command syntax was wrong."
+                        warnings.warn("Received a request with an invalid syntax.", RuntimeWarning)
+                    else:
+                        try:
                             self.execute_request(name, args=args, kwargs=kwargs, client=client)
                             response = None
-                    except Exception:
-                        response = "There was an error."
-                        warnings.warn("Received a request with an invalid syntax.", SyntaxWarning)
+                        except Exception:
+                            response = "Something went wrong."
+                            warnings.warn("Something went wrong with a request.", RuntimeWarning)
                     if response:
                         client.send(response)
             except Exception:
@@ -116,7 +121,11 @@ class RequestHandler(BaseRequestHandler):
             if inspect.signature(request_handling_function).return_annotation != inspect.Signature.empty:
                 return_converter = inspect.signature(request_handling_function).return_annotation
         def respond():
-            client.send(str(return_converter(request_handling_function(*args, **kwargs))))
+            try:
+                response = str(return_converter(request_handling_function(*args, **kwargs)))
+            except ErrorMessage as e:
+                response = " ".join(e.args)
+            client.send(response)
         if request_handling_function.thread:
             thread = StoppableThread(target=respond)
             thread.start()
@@ -211,7 +220,10 @@ def parse_normal_request(msg : str, name : str):
     return name, args, {}
 
 
-
+class ErrorMessage(Exception):
+    """
+    Error with a message
+    """
 
 
 
