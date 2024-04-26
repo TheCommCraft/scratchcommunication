@@ -256,7 +256,7 @@ Stop the cloud requests handler using the `stop` method. (Only if the cloud requ
 cloud_requests.stop()
 ```
 
-## Encrypted data transmition
+## Encrypted data transmission
 
 See [Cloud Socket Security](#cloud-socket-security) for this.
 
