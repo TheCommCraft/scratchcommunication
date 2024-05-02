@@ -42,6 +42,26 @@ session = scratchcommunication.Session.login("YOUR_USERNAME", "YOUR_PASSWORD")
 
 I recommend using your session id instead of your password. 
 
+## Login from browser
+
+This will login using cookies from your browser. It only works if you have that browser installed and if you are logged in.
+
+```python
+import scratchcommunication
+session = scratchcommunication.Session.from_browser(scratchcommunication.ANY)
+```
+
+You can choose from these browsers:
+
+FIREFOX
+CHROME
+EDGE
+SAFARI
+CHROMIUM
+EDGE_DEV
+VIVALDI
+ANY
+
 ## Access account data
 
 Once you have logged into your account, you can access your account data.

@@ -1,12 +1,30 @@
 import warnings
-from .headers import headers
-from .exceptions import InvalidValueError, ErrorInCloudSocket
-from . import cloud, cloud_socket
 import requests, json, re
+from typing import Literal, Self, assert_never
+from .headers import headers
+from .exceptions import InvalidValueError, ErrorInCloudSocket, NotSupported
+from . import cloud, cloud_socket
+try:
+    import browsercookie
+    browsercookie_err = None
+except Exception as e:
+    browsercookie = None
+    browsercookie_err = e
+
+FIREFOX = 0
+CHROME = 1
+EDGE = 2
+SAFARI = 3
+CHROMIUM = 4
+EDGE_DEV = 5
+VIVALDI = 6
+ANY = 7
 
 class Session:
     __slots__ = ("session_id", "username", "headers", "cookies", "xtoken", "email", "id", "permissions", "flags", "banned", "session_data", "mute_status", "new_scratcher")
-    def __init__(self, username : str = None, *, session_id : str):
+    def __init__(self, username : str = None, *, session_id : str = None, _login : bool = False):
+        if not _login:
+            return
         self.session_id = session_id
         self.username = username
         self.headers = headers
@@ -30,12 +48,12 @@ class Session:
         for attr in self.__slots__:
             delattr(self, attr)
 
-    def _login(self):
+    def _login(self, *, _session : requests.Session = None):
         '''
         Don't use this
         '''
         try:
-            account = requests.post("https://scratch.mit.edu/session", headers=self.headers, cookies={
+            account = (_session or requests).post("https://scratch.mit.edu/session", headers=self.headers, cookies={
                 "scratchsessionsid": self.session_id,
                 "scratchcsrftoken": "a",
                 "scratchlanguage": "en",
@@ -53,11 +71,55 @@ class Session:
             self.mute_status = account["permissions"]["mute_status"]
         except Exception:
             if self.username is None:
-                raise ValueError("No username supplied and there was no found. The username is needed.")
+                raise ValueError("No username supplied and there was none found. The username is needed.")
             warnings.warn("Couldn't find token. Most features will probably still work.")
 
     @classmethod
-    def login(cls, username : str, password : str):
+    def from_browser(cls, browser : Literal[0,1,2,3,4,5,6,7]) -> Self:
+        """
+        Import cookies from browser to login
+        """
+        if not browsercookie:
+            raise NotSupported("You cannot use browsercookie") from browsercookie_err
+        match browser:
+            case 0:
+                cookies = browsercookie.firefox()
+            case 1:
+                cookies = browsercookie.chrome()
+            case 2:
+                cookies = browsercookie.edge()
+            case 3:
+                cookies = browsercookie.safari()
+            case 4:
+                cookies = browsercookie.chromium()
+            case 5:
+                cookies = browsercookie.edge_dev()
+            case 6:
+                cookies = browsercookie.vivaldi()
+            case 7:
+                cookies = browsercookie.load()
+            case _:
+                assert_never(browser)
+        
+        with requests.Session() as session:
+            session.cookies.update(cookies)
+            session.headers.update(headers)
+            obj = cls(_login=False)
+            obj.cookies = {
+                "scratchcsrftoken" : "a",
+                "scratchlanguage" : "en",
+                "scratchpolicyseen": "true",
+                "accept": "application/json",
+                "Content-Type": "application/json",
+            }
+            obj.cookies.update(session.cookies.get_dict(".scratch.mit.edu"))
+            obj.session_id = session.cookies.get_dict(".scratch.mit.edu").get("scratchsessionsid")
+            obj.headers = session.headers
+            obj._login(_session=session)
+            return obj
+
+    @classmethod
+    def login(cls, username : str, password : str) -> Self:
         '''
         Login from your username and password.
         '''
