@@ -1,5 +1,6 @@
 from .cloud import CloudConnection
 from . import security as sec
+from threading import Lock
 from typing import Union, Any, Self
 import random, time
 from itertools import islice
@@ -17,6 +18,11 @@ def batched(iterable, n):
     it = iter(iterable)
     while batch := tuple(islice(it, n)):
         yield batch
+        
+class BaseCloudSocketMSG:
+    """
+    Base class for cloud socket messages.
+    """
         
 class BaseCloudSocketClient:
     """
@@ -67,6 +73,15 @@ class BaseCloudSocket:
     """
     Base Class for creating cloud sockets with projects
     """
+    security : sec.RSAKeys
+    cloud : CloudConnection
+    clients : dict
+    new_clients : list
+    connecting_clients : list
+    key_parts : dict
+    last_timestamp : float
+    packet_size : int
+    accepting : Lock
     def __init__(self, *, cloud : CloudConnection, packet_size : int = 220, security : Union[None, tuple] = None):
         raise NotImplementedError
 
@@ -100,6 +115,16 @@ class BaseCloudSocketConnection:
     """
     Base Class for handling incoming connections from a cloud socket
     """
+    cloud_socket : BaseCloudSocket
+    client_id : str
+    username : str
+    security : str
+    encrypter : sec.SymmetricEncryption
+    secure : bool
+    new_msgs : list
+    current_msg : BaseCloudSocketMSG
+    receiving : Lock
+    sending : Lock
     def __init__(self, *, cloud_socket : BaseCloudSocket, client_id : str, username : str = None, security : str = None):
         raise NotImplementedError
     
@@ -134,6 +159,7 @@ class CloudSocket(BaseCloudSocket):
         self.key_parts = {}
         self.last_timestamp = time.time()
         self.packet_size = packet_size
+        self.accepting = Lock()
         
     def listen(self):
         """
@@ -251,14 +277,20 @@ class CloudSocket(BaseCloudSocket):
         """
         Returns a new client
         """
-        endtime = time.time() + timeout if timeout is not None else None
-        while (not self.new_clients) and (timeout is None or time.time() < endtime): 
-            pass
-        try:
-            new_client = self.new_clients.pop(0)
-            return new_client
-        except IndexError:
+        endtime = (time.time() + timeout) if timeout is not None else None
+        result = self.accepting.acquire(timeout=timeout if timeout is not None else -1)
+        if not result:
             raise TimeoutError("The timeout expired (consider setting timeout=None)")
+        try:
+            while (not self.new_clients) and (timeout is None or time.time() < endtime): 
+                pass
+            try:
+                new_client = self.new_clients.pop(0)
+                return new_client
+            except IndexError:
+                raise TimeoutError("The timeout expired (consider setting timeout=None)")
+        finally:
+            self.accepting.release()
     
 class CloudSocketConnection(BaseCloudSocketConnection):
     """
@@ -273,6 +305,8 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         self.secure = bool(self.security)
         self.new_msgs = []
         self.current_msg = CloudSocketMSG()
+        self.receiving = Lock()
+        self.sending = Lock()
 
     def __enter__(self):
         return self
@@ -299,31 +333,41 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         """
         Use for sending data to the client
         """
-        if self.secure:
-            self._secure_send(data)
-            return
-        data = str(self.cloud_socket._encode(data))
-        packets = ["".join(i) for i in batched(data, self.cloud_socket.packet_size)]
-        packet_idx = 0
-        for packet in packets[:-1]:
-            self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"-{packet}.{self.client_id}{packet_idx}")
-            packet_idx += 1
-        self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"{packets[-1]}.{self.client_id}{packet_idx}")
+        with self.sending:
+            if self.secure:
+                self._secure_send(data)
+                return
+            data = str(self.cloud_socket._encode(data))
+            packets = ["".join(i) for i in batched(data, self.cloud_socket.packet_size)]
+            packet_idx = 0
+            for packet in packets[:-1]:
+                self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"-{packet}.{self.client_id}{packet_idx}")
+                packet_idx += 1
+            self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"{packets[-1]}.{self.client_id}{packet_idx}")
 
     def recv(self, timeout : Union[float, None] = 10) -> str:
         """
         Use for receiving data from the client
         timeout defaults to 10 (seconds) but can be set to None if you do not want timeout.
         """
-        endtime = time.time() + timeout if timeout is not None else None
-        while (not self.new_msgs) and (timeout is None or time.time() < endtime):
-            pass
-        try:
-            return self.new_msgs.pop(0).message
-        except IndexError:
+        endtime = (time.time() + timeout) if timeout is not None else None
+        result = self.receiving.acquire(timeout=timeout if timeout is not None else -1)
+        if not result:
             raise TimeoutError("The timeout expired (consider setting timeout=None)")
+        try:
+            while (not self.new_msgs) and (timeout is None or time.time() < endtime):
+                pass
+            try:
+                return self.new_msgs.pop(0).message
+            except IndexError:
+                raise TimeoutError("The timeout expired (consider setting timeout=None)")
+        finally:
+            self.receiving.release()
     
-class CloudSocketMSG:
+class CloudSocketMSG(BaseCloudSocketMSG):
+    """
+    Class for cloud socket messages.
+    """
     def __init__(self, message : str = "", complete : bool = False):
         self.message = message
         self.complete = complete
