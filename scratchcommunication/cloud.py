@@ -434,7 +434,7 @@ class CloudConnection:
             else:
                 eventlist = self.events[event] = []
             eventlist.append(func)
-            def dispatcher(data : dict = None, **entries):
+            def dispatcher(data : dict = None, /, **entries):
                 return self.emit_event(event, **data, **entries)
             return dispatcher
 
