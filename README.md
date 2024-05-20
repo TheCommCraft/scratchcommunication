@@ -29,6 +29,7 @@ For this, you either need a session id or a password.
 ```python
 import scratchcommunication
 session = scratchcommunication.Session("YOUR_USERNAME", session_id="YOUR_SESSIONID")
+# You can also supply your XToken if it cannot be found using xtoken="YOUR_XTOKEN
 ```
 
 If you log in using your session id, you may not need your to supply your username.

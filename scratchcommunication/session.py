@@ -22,7 +22,7 @@ ANY = 7
 
 class Session:
     __slots__ = ("session_id", "username", "headers", "cookies", "xtoken", "email", "id", "permissions", "flags", "banned", "session_data", "mute_status", "new_scratcher")
-    def __init__(self, username : str = None, *, session_id : str = None, _login : bool = False):
+    def __init__(self, username : str = None, *, session_id : str = None, xtoken : str = None, _login : bool = False):
         if not _login:
             return
         self.session_id = session_id
@@ -36,7 +36,7 @@ class Session:
             "accept": "application/json",
             "Content-Type": "application/json",
         }
-        self._login()
+        self._login(xtoken=xtoken)
 
     def __enter__(self):
         return self
@@ -48,7 +48,7 @@ class Session:
         for attr in self.__slots__:
             delattr(self, attr)
 
-    def _login(self, *, _session : requests.Session = None):
+    def _login(self, *, xtoken : str = None, _session : requests.Session = None):
         '''
         Don't use this
         '''
@@ -58,9 +58,8 @@ class Session:
                 "scratchcsrftoken": "a",
                 "scratchlanguage": "en",
             }).json()
-            self.xtoken = account["user"]["token"]
+            self.supply_xtoken(account["user"]["token"])
             self.username = account["user"]["username"]
-            self.headers["X-Token"] = self.xtoken
             self.email = account["user"]["email"]
             self.id = account["user"]["id"]
             self.permissions = account["permissions"]
@@ -72,7 +71,14 @@ class Session:
         except Exception:
             if self.username is None:
                 raise ValueError("No username supplied and there was none found. The username is needed.")
-            warnings.warn("Couldn't find token. Most features will probably still work.")
+            warnings.warn("Couldn't find XToken. Most features will probably still work.")
+            if xtoken:
+                self.supply_xtoken(xtoken)
+                warnings.warn("Got XToken from login data.")
+                
+    def supply_xtoken(self, xtoken):
+        self.xtoken = xtoken
+        self.headers["X-Token"] = xtoken
 
     @classmethod
     def from_browser(cls, browser : Literal[0,1,2,3,4,5,6,7]) -> Self:
