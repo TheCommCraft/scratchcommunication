@@ -22,7 +22,7 @@ ANY = 7
 
 class Session:
     __slots__ = ("session_id", "username", "headers", "cookies", "xtoken", "email", "id", "permissions", "flags", "banned", "session_data", "mute_status", "new_scratcher")
-    def __init__(self, username : str = None, *, session_id : str = None, xtoken : str = None, _login : bool = False):
+    def __init__(self, username : str = None, *, session_id : str = None, xtoken : str = None, _login : bool = True):
         if not _login:
             return
         self.session_id = session_id
