@@ -2,7 +2,9 @@
 Submodule for handling incoming requests.
 """
 import re, warnings, ast, inspect, traceback, time
-from typing import Union, Mapping, Sequence, Any
+from inspect import Parameter
+from copy import deepcopy
+from typing import Union, Mapping, Sequence, Any, Callable
 from types import FunctionType
 from func_timeout import StoppableThread
 from scratchcommunication.cloud_socket import CloudSocketConnection, CloudSocket
@@ -140,7 +142,69 @@ class RequestHandler(BaseRequestHandler):
             raise NotUsingAThread("Can't stop a request handler that is not using a thread.")
         self.thread.stop(StopRequestHandler)
         self.cloud_socket.stop()
-                    
+                   
+                   
+KW = Parameter.KEYWORD_ONLY
+KWPS = Parameter.POSITIONAL_OR_KEYWORD
+PS = Parameter.POSITIONAL_ONLY
+MKW = Parameter.VAR_KEYWORD
+MPS = Parameter.VAR_POSITIONAL
+DO_NOTHING = lambda x: x
+
+def type_cast(func):
+    def wrapper(*args, **kwargs):
+        args, kwargs, return_ann = type_casting(func=func, signature=inspect.signature(func), args=args, kwargs=kwargs)
+        return return_ann(func(*args, **kwargs))
+    wrapper.__name__ = func.__name__
+    return wrapper
+
+def type_casting(*, func : FunctionType, signature : inspect.Signature, args : tuple, kwargs : dict) -> tuple[tuple, dict, Callable]:
+    args = list(deepcopy(args))
+    kwargs = dict(deepcopy(kwargs))
+    for idx, ((kw, param), arg) in enumerate(zip(signature.parameters.items(), args)):
+        if param.kind in (PS, KWPS):
+            if kw in kwargs:
+                raise TypeError(f"{func.__name__}() got multiple values for argument '{kw}'")
+            try:
+                args[idx] = (param.annotation if not param.annotation in (Any, signature.empty) else DO_NOTHING)(arg)
+            except TypeError:
+                pass
+        if param.kind == MPS:
+            items_converter = (param.annotation if not param.annotation in (Any, signature.empty) else DO_NOTHING)
+            item_converter = (items_converter.__args__[0] if hasattr(items_converter, "__args__") else DO_NOTHING) or DO_NOTHING
+            try:
+                args[idx:] = [item_converter(arg) for arg in items_converter(args[idx:])]
+            except TypeError:
+                pass
+            
+    last_idx = None
+    for idx, (kw, arg) in enumerate(kwargs.items()):
+        try:
+            param = signature.parameters[kw]
+            assert param.kind != MKW
+        except (KeyError, AssertionError):
+            last_idx = idx
+            break
+        if param.kind in (KW, KWPS):
+            try:
+                kwargs[kw] = (param.annotation if not param.annotation in (Any, signature.empty) else DO_NOTHING)(arg)
+            except TypeError:
+                pass
+            
+    if last_idx is not None:
+        for param in signature.parameters.values():
+            if param.kind == MKW:
+                items_converter = (param.annotation if not param.annotation in (Any, signature.empty) else DO_NOTHING)
+                item_converters = (items_converter.__args__[:2] if hasattr(items_converter, "__args__") else (DO_NOTHING, DO_NOTHING)) or (DO_NOTHING, DO_NOTHING)
+                try:
+                    kwargs.update({item_converters[0](k): item_converters[1](v) for k, v in dict(items_converter({i: j for i, j in list(kwargs.items())[last_idx:]})).items()})
+                except TypeError:
+                    pass
+        
+    return_callable = DO_NOTHING
+    if signature.return_annotation != inspect.Signature.empty and signature.return_annotation != Any:
+        return_callable = signature.return_annotation
+    return args, kwargs, return_callable
 
 def parse_python_request(msg : str, name : str):
     """
