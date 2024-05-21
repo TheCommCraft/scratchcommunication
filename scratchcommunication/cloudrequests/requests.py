@@ -102,26 +102,7 @@ class RequestHandler(BaseRequestHandler):
         Execute a request.
         """
         request_handling_function = self.requests[name]
-        return_converter = lambda x : x
-        if request_handling_function.auto_convert:
-            for idx, (arg, annotation) in enumerate(inspect.signature(request_handling_function).parameters.items()):
-                if not annotation.kind.value in [0, 1, 3]:
-                    continue
-                if inspect.Parameter.empty == annotation.annotation:
-                    continue
-                if not arg in kwargs:
-                    if not annotation.kind.value in [0, 1]:
-                        raise ValueError("Signature doesn't match")
-                    try:
-                        args[idx] = annotation.annotation(args[idx])
-                    except IndexError:
-                        pass
-                    continue
-                if not annotation.kind.value in [1, 3]:
-                    raise ValueError("Signature doesn't match")
-                kwargs[arg] = annotation.annotation(kwargs[arg])
-            if inspect.signature(request_handling_function).return_annotation != inspect.Signature.empty:
-                return_converter = inspect.signature(request_handling_function).return_annotation
+        args, kwargs, return_converter = type_casting(func=request_handling_function, signature=inspect.signature(request_handling_function), args=args, kwargs=kwargs)
         def respond():
             try:
                 response = str(return_converter(request_handling_function(*args, **kwargs)))
