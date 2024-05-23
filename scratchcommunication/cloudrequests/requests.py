@@ -78,7 +78,7 @@ class RequestHandler(BaseRequestHandler):
                         for req_name, raw_req in zip(sub_request_names, raw_sub_requests):
                             if re.match(r"\w+\(.*\)$", raw_req) and self.requests[req_name].allow_python_syntax:
                                 name, args, kwargs = parse_python_request(raw_req, req_name)
-                            elif not re.match(r"\w+(.*)$", raw_req):
+                            elif not re.match(r"\w+\(.*\)$", raw_req):
                                 name, args, kwargs = parse_normal_request(raw_req, req_name)
                             else:
                                 raise PermissionError("Python syntax is not allowed for this.")
