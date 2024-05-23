@@ -133,7 +133,7 @@ class CloudConnection:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        pass
+        self.stop_thread()
 
     def stop_thread(self):
         """
