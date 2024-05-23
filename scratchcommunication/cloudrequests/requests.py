@@ -58,6 +58,7 @@ class RequestHandler(BaseRequestHandler):
         clients : list[tuple[CloudSocketConnection, str]] = []
         end_time = duration and (time.time() + duration)
         while (not end_time) or time.time() < end_time:
+            time.sleep(0.05)
             try:
                 try:
                     clients.append(self.cloud_socket.accept(timeout=0))
@@ -83,7 +84,7 @@ class RequestHandler(BaseRequestHandler):
                                 raise PermissionError("Python syntax is not allowed for this.")
                     except Exception:
                         response = "The command syntax was wrong."
-                        warnings.warn("Received a request with an invalid syntax.", RuntimeWarning)
+                        warnings.warn("Received a request with an invalid syntax: \n"+traceback.format_exc(), RuntimeWarning)
                     else:
                         try:
                             self.execute_request(name, args=args, kwargs=kwargs, client=client)
@@ -97,7 +98,7 @@ class RequestHandler(BaseRequestHandler):
                 warnings.warn(f"There was an uncaught error in the request handler: {traceback.format_exc()}", RuntimeWarning)
                 
     
-    def execute_request(self, name, *, args : Sequence[Any], kwargs : Mapping[str, Any], client : CloudSocketConnection) -> Union[str, float, int]:
+    def execute_request(self, name, *, args : Sequence[Any], kwargs : Mapping[str, Any], client : CloudSocketConnection) -> None:
         """
         Execute a request.
         """
