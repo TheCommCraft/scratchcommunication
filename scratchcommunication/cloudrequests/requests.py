@@ -124,6 +124,7 @@ class RequestHandler(BaseRequestHandler):
             raise NotUsingAThread("Can't stop a request handler that is not using a thread.")
         self.thread.stop(StopRequestHandler)
         self.cloud_socket.stop()
+        self.thread.join(5)
                    
                    
 KW = Parameter.KEYWORD_ONLY
