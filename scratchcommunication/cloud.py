@@ -2,9 +2,9 @@ from typing import Literal, Union, Any, Protocol
 from collections.abc import Callable
 from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException, EventExpiredError
 import scratchcommunication
+from func_timeout import StoppableThread
 import json, time, requests, warnings, traceback, secrets, sys
 from websocket import WebSocket
-from func_timeout import StoppableThread
 
 NoneType = type(None)
 CloudConnection = None
@@ -79,7 +79,7 @@ class CloudConnection:
     accept_strs : bool
     wait_until : Union[float, int]
     receive_from_websocket : bool
-    data_reception : Any
+    data_reception : Union[StoppableThread, None]
     event_order : dict[Union[float, int, bool], dict[Event, int]]
     processed_events : list[Event]
     keep_all_events : bool
@@ -140,7 +140,8 @@ class CloudConnection:
         Use for stopping the underlying thread.
         """
         self.thread_running = False
-        self.data_reception.stop(StopException)
+        self.data_reception.stop(StopException, 0.1)
+        self.data_reception.join()
 
     def enable_quickaccess(self):
         """

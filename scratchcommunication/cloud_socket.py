@@ -1,6 +1,6 @@
 from .cloud import CloudConnection
 from . import security as sec
-from threading import Lock
+from threading import Lock, Condition
 from typing import Union, Any, Self
 import random, time
 from itertools import islice
@@ -82,6 +82,9 @@ class BaseCloudSocket:
     last_timestamp : float
     packet_size : int
     accepting : Lock
+    accepted : Condition
+    received_any : Condition
+    any_update : Condition
     def __init__(self, *, cloud : CloudConnection, packet_size : int = 220, security : Union[None, tuple] = None):
         raise NotImplementedError
 
@@ -124,6 +127,7 @@ class BaseCloudSocketConnection:
     new_msgs : list
     current_msg : BaseCloudSocketMSG
     receiving : Lock
+    received : Condition
     sending : Lock
     def __init__(self, *, cloud_socket : BaseCloudSocket, client_id : str, username : str = None, security : str = None):
         raise NotImplementedError
@@ -160,6 +164,9 @@ class CloudSocket(BaseCloudSocket):
         self.last_timestamp = time.time()
         self.packet_size = packet_size
         self.accepting = Lock()
+        self.accepted = Condition()
+        self.received_any = Condition()
+        self.any_update = Condition()
         
     def listen(self):
         """
@@ -207,6 +214,7 @@ class CloudSocket(BaseCloudSocket):
                     self.clients[client].current_msg.add(" "+self.clients[client].encrypter.decrypt(self._decode(msg_data[1:-15]), msg_data[-15:]))
                     assert not "-" in event.value
                     self.clients[client].current_msg.finalize(decode=False)
+                    self.clients[client]._new_msg()
                     self.clients[client].new_msgs.append(self.clients[client].current_msg)
                     self.clients[client].current_msg = CloudSocketMSG()
                     return
@@ -235,6 +243,8 @@ class CloudSocket(BaseCloudSocket):
                 client_obj = CloudSocketConnection(cloud_socket=self, client_id=client, username=client_username, security=key)
                 self.clients[client] = client_obj
                 self.new_clients.append((client_obj, client_username))
+                self.accepted.notify_all()
+                self.any_update.notify_all()
                 return
             except AssertionError:
                 pass
@@ -283,7 +293,7 @@ class CloudSocket(BaseCloudSocket):
             raise TimeoutError("The timeout expired (consider setting timeout=None)")
         try:
             while (not self.new_clients) and (timeout is None or time.time() < endtime): 
-                pass
+                self.accepted.wait(timeout and endtime - time.time())
             try:
                 new_client = self.new_clients.pop(0)
                 return new_client
@@ -307,6 +317,7 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         self.current_msg = CloudSocketMSG()
         self.receiving = Lock()
         self.sending = Lock()
+        self.received = Condition()
 
     def __enter__(self):
         return self
@@ -356,13 +367,21 @@ class CloudSocketConnection(BaseCloudSocketConnection):
             raise TimeoutError("The timeout expired (consider setting timeout=None)")
         try:
             while (not self.new_msgs) and (timeout is None or time.time() < endtime):
-                pass
+                self.received.wait(timeout and endtime - time.time())
             try:
                 return self.new_msgs.pop(0).message
             except IndexError:
                 raise TimeoutError("The timeout expired (consider setting timeout=None)")
         finally:
             self.receiving.release()
+            
+    def _new_msg(self):
+        """
+        Don't use.
+        """
+        self.received.notify_all()
+        self.cloud_socket.received_any.notify_all()
+        self.cloud_socket.any_update.notify_all()
     
 class CloudSocketMSG(BaseCloudSocketMSG):
     """
