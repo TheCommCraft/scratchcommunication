@@ -2,7 +2,7 @@
 Module for communicating with scratch projects.
 """
 
-__version_number__ = '2.8.6'
+__version_number__ = '2.9.1'
 
 from .session import *
 from .cloud import *
