@@ -55,47 +55,48 @@ class RequestHandler(BaseRequestHandler):
             self.thread = StoppableThread(target=lambda : self.start(thread=False), daemon=daemon_thread)
             self.thread.start()
             return
-        clients : list[tuple[CloudSocketConnection, str]] = []
-        end_time = duration and (time.time() + duration)
-        while (not end_time) or time.time() < end_time:
-            self.cloud_socket.any_update.wait(30)
-            try:
+        with self.cloud_socket.any_update:
+            clients : list[tuple[CloudSocketConnection, str]] = []
+            end_time = duration and (time.time() + duration)
+            while (not end_time) or time.time() < end_time:
+                self.cloud_socket.any_update.wait(30)
                 try:
-                    clients.append(self.cloud_socket.accept(timeout=0))
-                except TimeoutError:
-                    pass
-                for client, username in clients:
                     try:
-                        msg = client.recv(timeout=0)
+                        clients.append(self.cloud_socket.accept(timeout=0))
                     except TimeoutError:
-                        continue
-                    response = "No response."
-                    try:
-                        self.current_client = client
-                        self.current_client_username = username
-                        raw_sub_requests = [raw_request.strip() for raw_request in msg.split(";")]
-                        sub_request_names = [re.match(r"\w+", raw_request).group() for raw_request in raw_sub_requests]
-                        for req_name, raw_req in zip(sub_request_names, raw_sub_requests):
-                            if re.match(r"\w+\(.*\)$", raw_req) and self.requests[req_name].allow_python_syntax:
-                                name, args, kwargs = parse_python_request(raw_req, req_name)
-                            elif not re.match(r"\w+\(.*\)$", raw_req):
-                                name, args, kwargs = parse_normal_request(raw_req, req_name)
-                            else:
-                                raise PermissionError("Python syntax is not allowed for this.")
-                    except Exception:
-                        response = "The command syntax was wrong."
-                        warnings.warn("Received a request with an invalid syntax: \n"+traceback.format_exc(), RuntimeWarning)
-                    else:
+                        pass
+                    for client, username in clients:
                         try:
-                            self.execute_request(name, args=args, kwargs=kwargs, client=client)
-                            response = None
+                            msg = client.recv(timeout=0)
+                        except TimeoutError:
+                            continue
+                        response = "No response."
+                        try:
+                            self.current_client = client
+                            self.current_client_username = username
+                            raw_sub_requests = [raw_request.strip() for raw_request in msg.split(";")]
+                            sub_request_names = [re.match(r"\w+", raw_request).group() for raw_request in raw_sub_requests]
+                            for req_name, raw_req in zip(sub_request_names, raw_sub_requests):
+                                if re.match(r"\w+\(.*\)$", raw_req) and self.requests[req_name].allow_python_syntax:
+                                    name, args, kwargs = parse_python_request(raw_req, req_name)
+                                elif not re.match(r"\w+\(.*\)$", raw_req):
+                                    name, args, kwargs = parse_normal_request(raw_req, req_name)
+                                else:
+                                    raise PermissionError("Python syntax is not allowed for this.")
                         except Exception:
-                            response = "Something went wrong."
-                            warnings.warn("Something went wrong with a request.", RuntimeWarning)
-                    if response:
-                        client.send(response)
-            except Exception:
-                warnings.warn(f"There was an uncaught error in the request handler: {traceback.format_exc()}", RuntimeWarning)
+                            response = "The command syntax was wrong."
+                            warnings.warn("Received a request with an invalid syntax: \n"+traceback.format_exc(), RuntimeWarning)
+                        else:
+                            try:
+                                self.execute_request(name, args=args, kwargs=kwargs, client=client)
+                                response = None
+                            except Exception:
+                                response = "Something went wrong."
+                                warnings.warn(f"Something went wrong with a request: {traceback.format_exc()}", RuntimeWarning)
+                        if response:
+                            client.send(response)
+                except Exception:
+                    warnings.warn(f"There was an uncaught error in the request handler: {traceback.format_exc()}", RuntimeWarning)
                 
     
     def execute_request(self, name, *, args : Sequence[Any], kwargs : Mapping[str, Any], client : CloudSocketConnection) -> None:
@@ -120,10 +121,12 @@ class RequestHandler(BaseRequestHandler):
         """
         Stop the request handler.
         """
-        if self.uses_thread:
+        if not self.uses_thread:
             raise NotUsingAThread("Can't stop a request handler that is not using a thread.")
         self.thread.stop(StopRequestHandler)
         self.cloud_socket.stop()
+        with self.cloud_socket.any_update:
+            self.cloud_socket.any_update.notify_all()
         self.thread.join(5)
                    
                    
