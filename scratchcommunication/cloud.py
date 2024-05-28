@@ -141,7 +141,7 @@ class CloudConnection:
         """
         self.thread_running = False
         self.data_reception.stop(StopException, 0.1)
-        self.data_reception.join()
+        self.data_reception.join(5)
 
     def enable_quickaccess(self):
         """
