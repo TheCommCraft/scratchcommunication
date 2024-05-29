@@ -4,7 +4,7 @@ from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHand
 import scratchcommunication
 from func_timeout import StoppableThread
 import json, time, requests, warnings, traceback, secrets, sys
-from websocket import WebSocket
+from websocket import WebSocket, WebSocketConnectionClosedException, WebSocketTimeoutException
 
 NoneType = type(None)
 CloudConnection = None
@@ -138,7 +138,7 @@ class CloudConnection:
     def stop_thread(self):
         """
         Use for stopping the underlying thread.
-        """
+        """#
         self.thread_running = False
         self.data_reception.stop(StopException, 0.1)
         self.data_reception.join(5)
@@ -332,7 +332,7 @@ class CloudConnection:
         
         for i in data:
             i["var"] = i["name"]
-            i["name"] = i["name"].replace("☁ ", "", 1)
+            i["name"] = i["name"].removeprefix("☁ ")
             method = i.pop("method")
             if not first:
                 self.emit_event(method, **i)
@@ -340,33 +340,29 @@ class CloudConnection:
                 self.values[i["var"]] = i["value"]
         return self.values
 
-    def receive_data(self):
-        """
-        Use for receiving cloud data.
-        """
+    def _prepare_connection(self):
         while self.thread_running:
             try:
                 self.receive_new_data(first=True)
                 break
-            except TimeoutError:
+            except WebSocketTimeoutException:
                 pass
-            except Exception:
+            except WebSocketConnectionClosedException:
                 self._connect()
+
+    def receive_data(self):
+        """
+        Use for receiving cloud data.
+        """
+        self._prepare_connection()
         while self.thread_running:
             try:
                 self.receive_new_data()
-            except TimeoutError:
+            except WebSocketTimeoutException:
                 pass
-            except Exception:
+            except WebSocketConnectionClosedException:
                 self._connect()
-                while self.thread_running:
-                    try:
-                        self.receive_new_data(first=True)
-                        break
-                    except TimeoutError:
-                        pass
-                    except Exception:
-                        self._connect()
+                self._prepare_connection()
                     
     def get_age_of_event(self, event : Event) -> int:
         """

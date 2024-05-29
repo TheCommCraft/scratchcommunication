@@ -59,7 +59,7 @@ class RequestHandler(BaseRequestHandler):
             clients : list[tuple[CloudSocketConnection, str]] = []
             end_time = duration and (time.time() + duration)
             while (not end_time) or time.time() < end_time:
-                self.cloud_socket.any_update.wait(30)
+                success = self.cloud_socket.any_update.wait(30)
                 try:
                     try:
                         clients.append(self.cloud_socket.accept(timeout=0))
