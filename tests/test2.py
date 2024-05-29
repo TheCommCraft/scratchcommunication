@@ -13,13 +13,10 @@ session = Session.login(USERNAME, PASSWORD)
 cloud = session.create_cloud_socket(PROJECT_ID)
 client = scratchcommunication.cloudrequests.RequestHandler(cloud_socket=cloud, uses_thread=True)
 
-@cloud.cloud.on("set")
-def on_set(event):
-    print(event.__dict__)
-
 @client.request(name="test", auto_convert=True, allow_python_syntax=True, thread=False)
 def test_cmd(abc1 : int = None, abc2 : float = None) -> json.dumps:
-    return [abc1, abc2]
+    print(abc1, abc2)
+    return {"abc1": abc1, "abc2": abc2}
 
 try:
     client.start()

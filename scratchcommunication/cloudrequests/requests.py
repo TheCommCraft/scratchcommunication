@@ -49,12 +49,12 @@ class RequestHandler(BaseRequestHandler):
         """
         Method for starting the request handler.
         """
-        self.cloud_socket.listen()
         if thread or (thread is None and self.uses_thread):
             self.uses_thread = True
             self.thread = StoppableThread(target=lambda : self.start(thread=False), daemon=daemon_thread)
             self.thread.start()
             return
+        self.cloud_socket.listen()
         with self.cloud_socket.any_update:
             clients : list[tuple[CloudSocketConnection, str]] = []
             end_time = duration and (time.time() + duration)

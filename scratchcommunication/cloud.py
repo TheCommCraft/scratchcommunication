@@ -138,7 +138,7 @@ class CloudConnection:
     def stop_thread(self):
         """
         Use for stopping the underlying thread.
-        """#
+        """
         self.thread_running = False
         self.data_reception.stop(StopException, 0.1)
         self.data_reception.join(5)
