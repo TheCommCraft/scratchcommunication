@@ -381,7 +381,7 @@ After you have generated your keys, you will want to store and load them. For st
 print(keys.keys)
 ```
 
-When you have stored the three integers displayed, you just need to load them whenever you start your cloud socket and put two of them in your project. **Never** reveal all of the keys unless you want to regenerate them.
+When you have stored the three integers displayed, you just need to load them whenever you start your cloud socket and put two of them in your project. **Never** reveal all of the keys.
 
 ```python
 keys = scratchcommunication.security.RSAKeys((value_1, value_2, value_3))
