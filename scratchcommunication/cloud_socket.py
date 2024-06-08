@@ -1,5 +1,6 @@
 from .cloud import CloudConnection
 from . import security as sec
+import warnings
 from threading import Lock, Condition
 from typing import Union, Any, Self
 import random, time
@@ -28,7 +29,7 @@ class BaseCloudSocketClient:
     """
     Base class for connecting with cloud sockets
     """
-    def __init__(self, *, cloud : CloudConnection, username : str = "user1000", packet_size : int = 220, security : Union[None, tuple] = None):
+    def __init__(self, *, cloud : CloudConnection, username : str = "user1000", packet_size : int = 220, security : Union[None, tuple, sec.Security] = None):
         raise NotImplementedError
     
     def __enter__(self) -> Self:
@@ -73,7 +74,7 @@ class BaseCloudSocket:
     """
     Base Class for creating cloud sockets with projects
     """
-    security : sec.RSAKeys
+    security : Union[None, sec.ConnectSecurity]
     cloud : CloudConnection
     clients : dict
     new_clients : list
@@ -85,7 +86,7 @@ class BaseCloudSocket:
     accepted : Condition
     received_any : Condition
     any_update : Condition
-    def __init__(self, *, cloud : CloudConnection, packet_size : int = 220, security : Union[None, tuple] = None):
+    def __init__(self, *, cloud : CloudConnection, packet_size : int = 220, security : Union[None, tuple, sec.Security] = None):
         raise NotImplementedError
 
     def __enter__(self) -> Self:
@@ -154,8 +155,18 @@ class CloudSocket(BaseCloudSocket):
     """
     Class for creating cloud sockets with projects
     """
-    def __init__(self, *, cloud : CloudConnection, packet_size : int = 220, security : Union[None, tuple] = None):
-        self.security = None if security is None else sec.RSAKeys(security)
+    def __init__(self, *, cloud : CloudConnection, packet_size : int = 220, security : Union[None, tuple, sec.Security] = None):
+        self.security = None
+        if isinstance(security, tuple):
+            security_type = "RSA"
+        if isinstance(security, sec.Security):
+            security_type = security.security_type
+            security = security.data
+        if security_type == "RSA":
+            self.security = sec.RSAKeys(security)
+            warnings.warn("Switch to EC Security for much better performance! [[[No guide yet.]]]", UserWarning)
+        if security_type == "EC":
+            self.security = sec.ECSecurity(security)
         self.cloud = cloud
         self.clients = {}
         self.new_clients = []
@@ -198,7 +209,7 @@ class CloudSocket(BaseCloudSocket):
                 
                 client = value.split(".", 1)[1][:5]
                 
-                if not self._decode(msg_data[1:29]).startswith("_connect") and client in self.clients and not self.clients[client].secure:
+                if not (self._decode(msg_data[1:29]).startswith("_connect") or self._decode(msg_data[1:29]).startswith("_safe_connect:")) and client in self.clients and not self.clients[client].secure:
                     self.clients[client].current_msg.add(msg_data)
                     assert not "-" in event.value
                     self.clients[client].current_msg.finalize()
@@ -209,7 +220,7 @@ class CloudSocket(BaseCloudSocket):
                 
                 # Secure message part
                 
-                if not self._decode(msg_data[1:29]).startswith("_connect") and client in self.clients and self.clients[client].secure:
+                if not (self._decode(msg_data[1:29]).startswith("_connect") or self._decode(msg_data[1:29]).startswith("_safe_connect:")) and client in self.clients and self.clients[client].secure:
                     salt = int(msg_data[-15:]) / 100
                     assert salt > self.last_timestamp, "Invalid salt(too little)"
                     assert salt < time.time() + 30, "Invalid salt(too big)"
@@ -233,9 +244,9 @@ class CloudSocket(BaseCloudSocket):
                     self.last_timestamp = salt
                     key_parts = [self.key_parts.get("".join(key_part)) for key_part in batched(msg_data[29:-15], 5)]
                     assert not None in key_parts
-                    c_key = int("".join(key_parts))
-                    key = self.security.decrypt(c_key)
-                    assert str(key).startswith(str(int(msg_data[-15:])))
+                    c_key = "".join(key_parts)
+                    key = self._decrypt_key(c_key)
+                    assert str(key).endswith(str(int(msg_data[-15:]))) or str(key).startswith(str(int(msg_data[-15:])))
                     
                 # New user
                     
@@ -253,6 +264,17 @@ class CloudSocket(BaseCloudSocket):
                 return
             except AssertionError:
                 pass
+            
+    def _decrypt_key(self, key : str) -> int:
+        if isinstance(self.security, sec.ECSecurity):
+            salt = int(key[:15])
+            key = self._decode(key[15:])
+            key = self.security.decrypt(key)
+            key = "".join(str(i) for i in bytes.fromhex(key))
+            key = int(key + str(salt))
+            return key
+        if isinstance(self.security, sec.RSAKeys):
+            return self.security.decrypt(int(key))
             
     def stop(self):
         self.cloud.stop_thread()

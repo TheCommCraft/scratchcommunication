@@ -1,4 +1,6 @@
-from typing import Literal, Union, Any, Protocol
+from __future__ import annotations
+from typing import Literal, Union, Any, Protocol, assert_never, TypeVar
+from dataclasses import dataclass, field
 from collections.abc import Callable
 from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException, EventExpiredError
 import scratchcommunication
@@ -19,6 +21,7 @@ class Event:
     var : str = None
     name : str = None
     project : CloudConnection = None
+    context : Context
     type : str = None
     def __init__(self, _type: Literal["set", "delete", "connect", "create"], **entries):
         entries["type"] = _type
@@ -26,7 +29,7 @@ class Event:
         self._data = None
         self.project = getattr(self, "project")
         self._id = secrets.randbits(16)
-        
+        self.context = Context(cloud=self.project, context_type="event")
 
     @property
     def data(self):
@@ -61,6 +64,10 @@ class Event:
     def hash(self):
         return hash(self._id)
 
+@dataclass
+class Context:
+    cloud : CloudConnection = field(kw_only=True)
+    context_type : Union[Literal["event", "value"], Any] = field(kw_only=True)
 
 class CloudConnection:
     """
@@ -273,10 +280,17 @@ class CloudConnection:
         name : str,
         value : Union[float, int, bool],
         name_literal : bool = False,
+        context : Context = None
     ):
         """
         Use for setting a cloud variable.
         """
+        try:
+            assert context.cloud is self
+        except AssertionError:
+            raise ValueError("Invalid context")
+        except AttributeError:
+            pass
         self.verify_value(value)
         name = name if name_literal else "☁ " + name.removeprefix("☁ ")
         time.sleep(max(0, self.wait_until - time.time()))
@@ -293,26 +307,33 @@ class CloudConnection:
         )
 
     def get_variable(
-        self, *, name : str, name_literal : bool = False
+        self, *, name : str, name_literal : bool = False, context : Context = None
     ) -> Union[float, int, bool]:
         """
         Use for getting the value of a cloud variable.
         """
+        try:
+            assert context.cloud is self
+        except AssertionError:
+            raise ValueError("Invalid context")
+        except AttributeError:
+            pass
+        context = Context(cloud=self, context_type="value")
         name = name if name_literal else "☁ " + name.removeprefix("☁ ")
         if self.receive_from_websocket:
             try:
-                return self.values[name]
+                return (self.values[name])
             except Exception:
                 pass
         try:
-            return self.get_cloud_logs(
+            return (self.get_cloud_logs(
                 project_id=self.project_id,
                 limit=1,
                 filter_by_name=name,
                 filter_by_name_literal=True,
-            )[0]["value"]
+            )[0]["value"])
         except (IndexError, NotSupported):
-            return self.values[name]
+            return (self.values[name])
 
     def __getitem__(self, item : str) -> Union[float, int, bool]:
         if not self.quickaccess:
@@ -518,3 +539,10 @@ class TwCloudConnection(CloudConnection):
             if self.accept_strs and isinstance(value, str):
                 return
             raise ValueError("Bad value for cloud variables.") from e
+
+'''
+class PolyCloud(CloudConnection):
+    def get_variable(self, *, name: str, name_literal: bool = False) -> float | int | bool:
+        self
+        return super().get_variable(name=name, name_literal=name_literal)
+''' 

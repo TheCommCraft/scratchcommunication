@@ -1,6 +1,15 @@
-import random, os, sys, math, attrs, hashlib
+from __future__ import annotations
+import random, os, sys, math, attrs, hashlib, json
+from io import BytesIO
 from itertools import batched
 from Crypto.Cipher import AES
+from typing import Literal, Any, assert_never
+from cryptography.hazmat.primitives.asymmetric import x25519
+from binascii import unhexlify, hexlify
+
+
+SECURITY_RSA = "RSA"
+SECURITY_EC = "EC"
 
 alphabet = "abcdefghijklmnopqrstuvwxyz"
 special_characters = " .,-:;_'#!\"§$%&/()=?{[]}\\0123456789<>ß*"
@@ -52,8 +61,24 @@ def create_new_keys(byte_length = 130):
       return try_create_keys(p, q)
     except Exception:
       pass
+    
 
-class RSAKeys(tuple):
+def scalar_multiply(*, scalar: str, point: str) -> str:
+    scalar_bytes = unhexlify(scalar)
+    point_bytes = unhexlify(point)
+    
+    private_key = x25519.X25519PrivateKey.from_private_bytes(scalar_bytes)
+    
+    public_key = x25519.X25519PublicKey.from_public_bytes(point_bytes)
+    
+    shared_key = private_key.exchange(public_key)
+    
+    return hexlify(shared_key).decode()
+
+class ConnectSecurity(tuple):
+  pass
+
+class RSAKeys(ConnectSecurity):
   def __new__(cls, keys : tuple[int, int, int] = None, *, public_exponent : int = None, private_exponent : int = None, public_modulus : int = None):
     if keys is not None:
       public_exponent, private_exponent, public_modulus = keys
@@ -82,7 +107,26 @@ class RSAKeys(tuple):
   
   @property
   def public_keys(self) -> dict:
-    return {"public_exponent": self[0], "public_modulus": self[2]}
+    return {"[secure] public exponent": self[0], "[secure] public modulus": self[2], "[secure] key exchange scheme": "RSA"}
+  
+class ECSecurity(ConnectSecurity):
+  def __new__(cls, data : tuple[str, str, str]):
+    data = data if len(data) == 3 else (*data, scalar_multiply(point=data[0], scalar=data[1]))
+    return super().__new__(cls, data)
+    
+  def __repr__(self):
+    return "<ECSecurity object>"
+
+  @property
+  def keys(self) -> tuple:
+    return tuple(self)
+  
+  def decrypt(self, data : str) -> str:
+    return scalar_multiply(point=data, scalar=self[1])
+  
+  @property
+  def public_data(self) -> dict:
+    return {"[secure] public base": self[0], "[secure] public point": self[2], "[secure] key exchange scheme": "EC"}
 
 @attrs.define(frozen=True)
 class OldSymmetricEncryption:
@@ -132,7 +176,7 @@ class SymmetricEncryption:
   
   def __init__(self, key : int, hashed_key : bytes = None) -> None:
     self.key = key
-    self.hashed_key = hashlib.sha256(bytes(str(key), "utf-8")[-53:]).digest()[:16]
+    self.hashed_key = hashed_key or hashlib.sha256(bytes(str(key), "utf-8")[-53:]).digest()[:16]
   
   def encrypt(self, data : str, salt : int) -> str:
     seed = random.randrange(1000, 9999)
@@ -171,3 +215,55 @@ class SymmetricEncryption:
 def bin_xor(__bytes : bytes, number : int):
   byte_list = [int("".join(a)) for a in batched(str(number), 2)]
   return (f_p := bytes(a ^ b for a, b in zip(__bytes, byte_list)))+__bytes[len(f_p):]
+
+@attrs.define
+class Security:
+  security_type : Literal["RSA", "EC"] = attrs.field(kw_only=True)
+  data : Any = attrs.field(kw_only=True)
+  
+  @classmethod
+  def generate(cls, __type : Literal["RSA", "EC"] = "EC") -> Security:
+    if __type == "RSA":
+      return cls(data=RSAKeys.create_new_keys().keys, security_type="RSA")
+    if __type != "EC":
+      assert_never()
+    scalar = bytearray(os.urandom(32))
+    
+    scalar[0] &= 248
+    scalar[31] &= 127
+    scalar[31] |= 64
+    
+    data = bytes(scalar).hex()
+    
+    return cls(data=("0900000000000000000000000000000000000000000000000000000000000000", data), security_type="EC")
+  
+  @property
+  def public_data(self) -> dict:
+    if self.security_type == "RSA":
+      return RSAKeys(self.data).public_keys
+    if self.security_type == "EC":
+      return ECSecurity(self.data).public_data
+    
+  def to_string(self) -> str:
+    data = BytesIO()
+    if self.security_type == "RSA":
+      data.write(b"RSAxxxx1")
+    elif self.security_type == "EC":
+      data.write(b"ECxxxxx1")
+    else:
+      raise ValueError("Unknown format")
+    data.write(json.dumps(self.data).encode("utf-8"))
+    return data.getvalue().decode("utf-8")
+    
+  @classmethod
+  def from_string(cls, data : str) -> Security:
+    s_type = data[:8]
+    if s_type == "RSAxxxx1":
+      s_type = "RSA"
+    elif s_type == "ECxxxxx1":
+      s_type = "EC"
+    else:
+      raise ValueError("Unknown format")
+    data = data[8:]
+    data = json.loads(data)
+    return cls(security_type=s_type, data=data)

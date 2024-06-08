@@ -1,9 +1,10 @@
 import warnings
 import requests, json, re
-from typing import Literal, Self, assert_never
+from typing import Literal, Self, assert_never, Union
 from .headers import headers
 from .exceptions import InvalidValueError, ErrorInCloudSocket, NotSupported
 from . import cloud, cloud_socket
+from . import security as sec
 try:
     import browsercookie
     browsercookie_err = None
@@ -169,13 +170,13 @@ class Session:
         '''
         return self.create_turbowarp_cloudconnection(*args, **kwargs)
 
-    def create_cloud_socket(self, project_id : int, *, packet_size : int = 220, cloudconnection_kwargs : dict = None, security : tuple = None, **kwargs):
+    def create_cloud_socket(self, project_id : int, *, packet_size : int = 220, cloudconnection_kwargs : dict = None, security : Union[None, tuple, sec.Security] = None, **kwargs):
         '''
         Create a cloud socket to a project.
         '''
         return cloud_socket.CloudSocket(cloud=self.create_cloudconnection(project_id, warning_type=ErrorInCloudSocket, **(cloudconnection_kwargs if cloudconnection_kwargs else {})), packet_size=packet_size, security=security, **kwargs)
 
-    def create_turbowarp_cloud_socket(self, contact_info : str, project_id : str, *, packet_size : int = 90000, cloudconnection_kwargs : dict = None, security : tuple = None, **kwargs):
+    def create_turbowarp_cloud_socket(self, contact_info : str, project_id : str, *, packet_size : int = 90000, cloudconnection_kwargs : dict = None, security : Union[None, tuple, sec.Security] = None, **kwargs):
         '''
         Create a cloud socket to a turbowarp project.
         '''

@@ -218,7 +218,7 @@ If you set `daemon_thread` to `True` when creating the object, the background th
 
 # Cloud requests
 
-Cloud requests are based on cloud sockets and allow you to have your project send requests to your server which it automatically responds to. You'll need to put the first sprite from this [project](https://scratch.mit.edu/projects/884190099/) in your project for cloud requests to work.
+Cloud requests are based on [cloud sockets](#cloud-sockets) and allow you to have your project send requests to your server which it automatically responds to. You'll need to put the first sprite from this [project](https://scratch.mit.edu/projects/884190099/) in your project for cloud requests to work.
 
 ## Creating a cloud requests handler
 
@@ -278,6 +278,8 @@ cloud_requests.stop()
 ```
 
 ## Encrypted data transmission
+
+For making the data transmission in your cloud request handler secret, you need to make the underlying cloud socket secure.
 
 See [Cloud Socket Security](#cloud-socket-security) for this.
 
@@ -369,33 +371,45 @@ The received data will be in the variable "[cloud] reception". You can change th
 
 You might want to be able to send private data that only the designated recipient can read, but that is impossible unless you use asymmetric encryption or something similar. Fortunately for you, the hard work has already been done.
 
-You will need to generate RSA keys for this. In order to do that, you can just use `scratchcommunication.security.RSAKeys.create_new_keys`.
+You will need to generate a Security object for this. In order to do that, you can just use `scratchcommunication.security.Security.generate`.
 
 ```python
-keys = scratchcommunication.security.RSAKeys.create_new_keys()
+security = scratchcommunication.security.Security.generate()
 ```
 
-After you have generated your keys, you will want to store and load them. For storing your keys, you need to use `scratchcommunication.security.RSAKeys.keys` to find the values to store.
+After you have generated your keys, you will want to store and load them. For storing your keys, you need to use `scratchcommunication.security.Security.to_string` to find the data to store.
 
 ```python
-print(keys.keys)
+string_representation_of_security = security.to_string()
+print(string_representation_of_security)
 ```
 
-When you have stored the three integers displayed, you just need to load them whenever you start your cloud socket and put `keys.public_keys` in your project as the variables `public_exponent` and `public_modulus`. **Never** reveal all of the keys.
+When you have stored the string displayed, you just need to load it whenever you start your cloud socket using some code similar to this:
 
 ```python
-keys = scratchcommunication.security.RSAKeys((value_1, value_2, value_3))
-print(keys.public_keys) # Put the resulting values into the corresponding variables in your Scratch project.
+security = scratchcommunication.security.Security.from_string(string_representation_of_security)
 ```
 
-To use the keys in your cloud socket, you just need to pass them in as `security`.
+Next, you need to look at `security.public_data`. 
+
+```python
+print(security.public_data)
+```
+
+It will be a dictionary with the keys being variable names and the values being the value you need to set them to in your project.
+
+To use the security object in your cloud socket, you just need to pass it in as `security`.
 
 ```python
 secure_cloud_socket = session.create_cloud_socket(
     project_id = "Your project id here", 
-    security = keys
+    security = security
 )
 ```
+
+### Important security notice
+
+**NEVER** make the string representation of the security or any other data relating to the security public except for the aforementioned public data, because making any of the secret data public will make all transmission insecure again.
 
 # Contact
 
