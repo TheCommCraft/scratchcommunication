@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
     
-VERSION = '2.9.5'
+VERSION = '2.10.1'
 
 setup(
     name='scratchcommunication',
@@ -31,7 +31,8 @@ setup(
         'func-timeout',
         'pycryptodome',
         'attrs',
-        'browsercookie'
+        'browsercookie',
+        'cryptography'
     ],
     python_requires='>=3.11',
 )
