@@ -415,4 +415,12 @@ secure_cloud_socket = session.create_cloud_socket(
 
 If you have questions, want to propose new features or have found a bug, contact me [here](https://github.com/thecommcraft/scratchcommunication/issues)
 
+# Credits
+
+A lot of frontend cryptography by @Retr0id on Scratch (https://scratch.mit.edu/users/Retr0id)
+
+Inspiration by @TimMcCool
+
+Everything else by me (I think)
+
 # More coming soon
