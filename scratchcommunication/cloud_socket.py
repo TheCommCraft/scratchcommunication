@@ -283,7 +283,7 @@ class CloudSocket(BaseCloudSocket):
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
-        pass
+        self.stop()
 
     @staticmethod
     def _decode(data : int) -> str:

@@ -27,11 +27,11 @@ class RequestHandler(BaseRequestHandler):
         Decorator for adding requests.
         """
         if func:
-            func.__name__ = name or func.__name__
+            func.__req_name__ = name or func.__name__
             func.auto_convert = auto_convert
             func.allow_python_syntax = allow_python_syntax
             func.thread = thread
-            self.requests[func.__name__] = func
+            self.requests[func.__req_name__] = func
             return
         return lambda x : self.request(x, name=name, auto_convert=auto_convert, allow_python_syntax=allow_python_syntax)
     
@@ -39,11 +39,11 @@ class RequestHandler(BaseRequestHandler):
         """
         Method for adding requests.
         """
-        func.__name__ = name or func.__name__
+        func.__req_name__ = name or func.__name__
         func.auto_convert = auto_convert
         func.allow_python_syntax = allow_python_syntax
         func.thread = thread
-        self.requests[func.__name__] = func
+        self.requests[func.__req_name__] = func
     
     def start(self, *, thread : bool = None, daemon_thread : bool = False, duration : Union[float, int, None] = None):
         """
@@ -128,6 +128,12 @@ class RequestHandler(BaseRequestHandler):
         with self.cloud_socket.any_update:
             self.cloud_socket.any_update.notify_all()
         self.thread.join(5)
+        
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.stop()
                    
                    
 KW = Parameter.KEYWORD_ONLY
