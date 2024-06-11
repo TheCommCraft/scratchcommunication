@@ -9,7 +9,6 @@ import json, time, requests, warnings, traceback, secrets, sys
 from websocket import WebSocket, WebSocketConnectionClosedException, WebSocketTimeoutException
 
 NoneType = type(None)
-CloudConnection = None
 
 class EventDispatcher(Protocol):
     def __call__(self, data : dict, **entries) -> None:
