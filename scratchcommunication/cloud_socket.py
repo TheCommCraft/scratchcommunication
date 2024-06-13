@@ -264,6 +264,7 @@ class CloudSocket(BaseCloudSocket):
                 return
             except AssertionError:
                 pass
+        return self
             
     def _decrypt_key(self, key : str) -> int:
         if isinstance(self.security, sec.ECSecurity):
@@ -326,7 +327,7 @@ class CloudSocket(BaseCloudSocket):
                     new_client = self.new_clients.pop(0)
                     return new_client
                 except IndexError:
-                    raise TimeoutError("The timeout expired (consider setting timeout=None)")
+                    raise TimeoutError("The timeout expired (consider setting timeout=None)") from None
             finally:
                 self.accepting.release()
     

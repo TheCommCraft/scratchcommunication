@@ -330,22 +330,33 @@ In order for the cloud socket to work, you'll need to add the sprite from this [
 
 ## Using a cloud socket
 
-Once you have created a cloud socket you have to start it using `scratchcommunication.cloud_socket.CloudSocket.listen`
+Once you have created a cloud socket you have to start it using `scratchcommunication.cloud_socket.CloudSocket.listen` and you can also put it in a with statement, which makes the cloud socket shut down automatically when the code is done executing.
 
 ```python
 cloud_socket.listen()
+
+# OR
+
+with cloud_socket.listen():
+    ... # Your code here
 ```
+
+
 
 After you start the cloud socket you can wait for a new user using `scratchcommunication.cloud_socket.CloudSocket.accept`
 
 ```python
-client, client_username = cloud_socket.accept()
+client, client_username = cloud_socket.accept(
+    timeout = 10 # (Optional) 
+)
 ```
 
 When you have a client, you can send messages to them and receive messages.
 
 ```python
-msg = client.recv()
+msg = client.recv(
+    timeout = 10 # (Optional)
+)
 client.send("Hello!")
 ```
 
