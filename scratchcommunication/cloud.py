@@ -5,7 +5,7 @@ from collections.abc import Callable
 from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException, EventExpiredError
 import scratchcommunication
 from func_timeout import StoppableThread
-import json, time, requests, warnings, traceback, secrets, sys
+import json, time, requests, warnings, traceback, secrets, sys, ssl
 from websocket import WebSocket, WebSocketConnectionClosedException, WebSocketTimeoutException
 
 NoneType = type(None)
@@ -90,6 +90,7 @@ class CloudConnection:
     processed_events : list[Event]
     keep_all_events : bool
     supports_cloud_logs : bool
+    allow_no_certificate : bool
     def __init__(
         self,
         *,
@@ -102,8 +103,11 @@ class CloudConnection:
         warning_type : type[Warning] = ErrorInEventHandler,
         daemon_thread : bool = False,
         connect : bool = True,
-        keep_all_events : bool = False
+        keep_all_events : bool = False,
+        allow_no_certificate : bool = False
     ):
+        self.websocket = None
+        self.allow_no_certificate = allow_no_certificate
         self.supports_cloud_logs = True
         self.keep_all_events = keep_all_events
         self.event_order = {}
@@ -124,14 +128,14 @@ class CloudConnection:
         self.data_reception = None
         if not connect:
             return
-        self._connect()
+        self._handle_connect()
         if not self.receive_from_websocket:
             while True:
                 try:
                     self.receive_new_data()
                     return
                 except Exception:
-                    self._connect()
+                    self._handle_connect()
         self.data_reception = StoppableThread(target=self.receive_data, daemon=daemon_thread)
         self.data_reception.start()
 
@@ -148,7 +152,7 @@ class CloudConnection:
         self.thread_running = False
         self.data_reception.stop(StopException, 0.1)
         self.data_reception.join(5)
-
+        
     def enable_quickaccess(self):
         """
         Use for enabling the use of the object as a lookup table.
@@ -161,27 +165,39 @@ class CloudConnection:
         """
         self.quickaccess = False
 
-    def _connect(self, *, retry : int = 10):
+    def _connect(self, no_cert : bool = False):
+        self.websocket = WebSocket(sslopt=({"cert_reqs": ssl.CERT_NONE} if no_cert else None))
+        self.websocket.connect(
+            "wss://clouddata.scratch.mit.edu",
+            cookie="scratchsessionsid=" + self.session.session_id + ";",
+            origin="https://scratch.mit.edu",
+            enable_multithread=True,
+            timeout=5
+        )
+    
+    def _handle_connect(self, *, retry : int = 3) -> Union[Exception, None]:
         """
         Don't use this.
         """
         try:
-            self.websocket = WebSocket()
-            self.websocket.connect(
-                "wss://clouddata.scratch.mit.edu",
-                cookie="scratchsessionsid=" + self.session.session_id + ";",
-                origin="https://scratch.mit.edu",
-                enable_multithread=True,
-                timeout=5
-            )
+            self._connect()
             self.handshake()
             self.emit_event("connect", timestamp=time.time())
+        except ssl.SSLCertVerificationError:
+            if not self.allow_no_certificate:
+                return ConnectionError(
+                    "The SSL certificate could not be verified. Add allow_no_certificate=True to allow a connection without a certificate."
+                )
+            warnings.warn("Connecting without a certificate.", RuntimeWarning)
+            self._connect(no_cert=True)
         except Exception as e:
             if retry == 1:
-                raise ConnectionError(
-                    f"There was an error while connecting to the cloud server."
-                ) from e
-            self._connect(retry=retry - 1)
+                return ConnectionError(
+                    "There was an error while connecting to the cloud server."
+                )
+            exc = self._handle_connect(retry=retry - 1)
+            if exc:
+                raise exc from e
 
     def handshake(self):
         self.send_packet(
@@ -270,7 +286,7 @@ class CloudConnection:
                 raise ConnectionError(
                     "There was an error while setting the cloud variable."
                 ) from e
-            self._connect()
+            self._handle_connect()
             self._set_variable(name=name, value=value, retry=retry - 1)
 
     def set_variable(
@@ -360,7 +376,7 @@ class CloudConnection:
                 self.values[i["var"]] = i["value"]
         return self.values
 
-    def _prepare_connection(self):
+    def _prepare_handle_connection(self):
         while self.thread_running:
             try:
                 self.receive_new_data(first=True)
@@ -368,21 +384,21 @@ class CloudConnection:
             except WebSocketTimeoutException:
                 pass
             except WebSocketConnectionClosedException:
-                self._connect()
+                self._handle_connect()
 
     def receive_data(self):
         """
         Use for receiving cloud data.
         """
-        self._prepare_connection()
+        self._prepare_handle_connection()
         while self.thread_running:
             try:
                 self.receive_new_data()
             except WebSocketTimeoutException:
                 pass
             except WebSocketConnectionClosedException:
-                self._connect()
-                self._prepare_connection()
+                self._handle_connect()
+                self._prepare_handle_connection()
                     
     def get_age_of_event(self, event : Event) -> int:
         """
@@ -478,7 +494,8 @@ class TwCloudConnection(CloudConnection):
         cloud_host : str = "wss://clouddata.turbowarp.org/", 
         accept_strs : bool = False,
         keep_all_events : bool = False,
-        contact_info : str
+        contact_info : str,
+        allow_no_certificate : bool = False
     ):
         super().__init__(
             project_id=project_id, 
@@ -490,7 +507,8 @@ class TwCloudConnection(CloudConnection):
             warning_type=warning_type,
             daemon_thread=daemon_thread,
             connect=False,
-            keep_all_events=keep_all_events
+            keep_all_events=keep_all_events,
+            allow_no_certificate=allow_no_certificate
         )
         self.supports_cloud_logs = False
         self.contact_info = contact_info or ((f"@{session.username} on scratch" if session else "Anonymous") if username == "player1000" else f"@{username} on scratch")
@@ -498,31 +516,20 @@ class TwCloudConnection(CloudConnection):
         self.user_agent = f"scratchcommunication/{scratchcommunication.__version_number__} - {self.contact_info}"
         self.cloud_host = cloud_host
         self.accept_strs = accept_strs
-        self._connect()
+        self._handle_connect()
         if not self.receive_from_websocket:
             while True:
                 try:
                     self.receive_new_data()
                     return
                 except Exception:
-                    self._connect()
+                    self._handle_connect()
         self.data_reception = StoppableThread(target=self.receive_data, daemon=daemon_thread)
         self.data_reception.start()
-
-    def _connect(self, *, cloud_host = None, retry : int = 10):
-        try:
-            if cloud_host is not None:
-                self.cloud_host = cloud_host
-            self.websocket = WebSocket()
-            self.websocket.connect(self.cloud_host, enable_multithread=True, timeout=5, header={"User-Agent": self.user_agent})
-            self.handshake()
-            self.emit_event("connect")
-        except Exception as e:
-            if retry == 1:
-                raise ConnectionError(
-                    f"There was an error while connecting to the cloud server."
-                ) from e
-            self._connect(cloud_host=cloud_host, retry=retry - 1)
+        
+    def _connect(self, no_cert : bool = False):
+        self.websocket = WebSocket(sslopt=({"cert_reqs": ssl.CERT_NONE} if no_cert else None))
+        self.websocket.connect(self.cloud_host, enable_multithread=True, timeout=5, header={"User-Agent": self.user_agent})
 
     @staticmethod
     def get_cloud_logs(*args, **kwargs):
