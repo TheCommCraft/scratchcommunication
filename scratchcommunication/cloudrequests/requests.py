@@ -53,7 +53,7 @@ class RequestHandler(BaseRequestHandler):
             self.uses_thread = True
             self.thread = StoppableThread(target=lambda : self.start(thread=False), daemon=daemon_thread)
             self.thread.start()
-            return
+            return self
         self.cloud_socket.listen()
         with self.cloud_socket.any_update:
             clients : list[tuple[CloudSocketConnection, str]] = []
