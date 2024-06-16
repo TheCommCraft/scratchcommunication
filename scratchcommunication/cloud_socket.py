@@ -157,6 +157,7 @@ class CloudSocket(BaseCloudSocket):
     """
     def __init__(self, *, cloud : CloudConnection, packet_size : int = 220, security : Union[None, tuple, sec.Security] = None):
         self.security = None
+        self.security_type = None
         if isinstance(security, tuple):
             security_type = "RSA"
         if isinstance(security, sec.Security):
