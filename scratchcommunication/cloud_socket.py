@@ -165,7 +165,7 @@ class CloudSocket(BaseCloudSocket):
             security = security.data
         if security_type == "RSA":
             self.security = sec.RSAKeys(security)
-            warnings.warn("Switch to EC Security for much better performance! [[[No guide yet.]]]", UserWarning)
+            warnings.warn("Switch to EC Security for much better performance!", UserWarning)
         if security_type == "EC":
             self.security = sec.ECSecurity(security)
         self.cloud = cloud
