@@ -16,7 +16,6 @@ class RequestHandler(BaseRequestHandler):
     """
     def __init__(self, *, cloud_socket : CloudSocket, uses_thread : bool = False):
         super().__init__(cloud_socket=cloud_socket, uses_thread=uses_thread)
-        self.project_id = self.cloud_socket.cloud.project_id
         self.requests = {}
         self.thread = None
         self.current_client = None

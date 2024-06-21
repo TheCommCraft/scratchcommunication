@@ -2,25 +2,45 @@ from __future__ import annotations
 from typing import Literal, Union, Any, Protocol, assert_never, TypeVar
 from dataclasses import dataclass, field
 from collections.abc import Callable
+from functools import wraps
 from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException, EventExpiredError
 import scratchcommunication
 from func_timeout import StoppableThread
 import json, time, requests, warnings, traceback, secrets, sys, ssl
 from websocket import WebSocket, WebSocketConnectionClosedException, WebSocketTimeoutException
 
-NoneType = type(None)
+@dataclass
+class Context:
+    _cloud : CloudConnection = field(kw_only=True)
+    
+    def set_var(self, name : str, value : Union[float, int, bool], *, name_literal : bool = False, context : Context = None):
+        """
+        Set a variable in this context.
+        """
+        return self._cloud.set_variable(name=name, value=value, name_literal=name_literal, context=context)
+        
+    def get_var(self, name : str, *, name_literal : bool = False, context : Context = None) -> Union[float, int, bool]:
+        """
+        Get a variable in this context.
+        """
+        return self._cloud.get_variable(name=name, name_literal=name_literal, context=context)
+    
+    def emit(self, event : Union[Event, Literal["set", "delete", "connect", "create"]], *, context : Context = None, **entries) -> int:
+        """
+        Emit an event in this context.
+        """
+        return self._cloud.emit_event(event, context=context, **entries)
 
 class EventDispatcher(Protocol):
     def __call__(self, data : dict, **entries) -> None:
         pass
 
-class Event:
+class Event(Context):
     _id : int = None
     value : Union[float, int, bool] = None
     var : str = None
     name : str = None
     project : CloudConnection = None
-    context : Context
     type : str = None
     def __init__(self, _type: Literal["set", "delete", "connect", "create"], **entries):
         entries["type"] = _type
@@ -28,7 +48,6 @@ class Event:
         self._data = None
         self.project = getattr(self, "project")
         self._id = secrets.randbits(16)
-        self.context = Context(cloud=self.project, context_type="event")
 
     @property
     def data(self):
@@ -60,15 +79,14 @@ class Event:
     def timestamp(self):
         return self.data["timestamp"]
     
-    def hash(self):
+    @property
+    def _cloud(self):
+        return self.project
+    
+    def __hash__(self):
         return hash(self._id)
 
-@dataclass
-class Context:
-    cloud : CloudConnection = field(kw_only=True)
-    context_type : Union[Literal["event", "value"], Any] = field(kw_only=True)
-
-class CloudConnection:
+class CloudConnection(Context):
     """
     Connect to a cloud server and set cloud variables.
     """
@@ -300,12 +318,8 @@ class CloudConnection:
         """
         Use for setting a cloud variable.
         """
-        try:
-            assert context.cloud is self
-        except AssertionError:
-            raise ValueError("Invalid context")
-        except AttributeError:
-            pass
+        context = context or self
+        assert context is self or context._cloud is self, "Wrong context"
         self.verify_value(value)
         name = name if name_literal else "☁ " + name.removeprefix("☁ ")
         time.sleep(max(0, self.wait_until - time.time()))
@@ -327,13 +341,8 @@ class CloudConnection:
         """
         Use for getting the value of a cloud variable.
         """
-        try:
-            assert context.cloud is self
-        except AssertionError:
-            raise ValueError("Invalid context")
-        except AttributeError:
-            pass
-        context = Context(cloud=self, context_type="value")
+        context = context or self
+        assert context is self or context._cloud is self, "Wrong context"
         name = name if name_literal else "☁ " + name.removeprefix("☁ ")
         if self.receive_from_websocket:
             try:
@@ -409,10 +418,12 @@ class CloudConnection:
         except KeyError:
             raise ValueError("No such event")
 
-    def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event], **entries) -> int:
+    def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event], context : Context = None, **entries) -> int:
         """
         Use for emitting events. Returns how many handlers could handle the event.
         """
+        context = context or self
+        assert context is self or context._cloud is self, "Wrong context"
         data = event if isinstance(event, Event) else Event(event, **entries)
         data.project = self
         if isinstance(event, Event):
@@ -467,11 +478,16 @@ class CloudConnection:
             else:
                 eventlist = self.events[event] = []
             eventlist.append(func)
-            def dispatcher(data : dict = None, /, **entries):
-                return self.emit_event(event, **data, **entries)
+            @wraps(func)
+            def dispatcher(data : dict = None, /, *, context : Context = None, **entries):
+                return self.emit_event(event, context=context, **data, **entries)
             return dispatcher
 
         return wrapper
+    
+    @property
+    def _cloud(self):
+        return self
 
 
 class TwCloudConnection(CloudConnection):
@@ -546,9 +562,68 @@ class TwCloudConnection(CloudConnection):
                 return
             raise ValueError("Bad value for cloud variables.") from e
 
-'''
-class PolyCloud(CloudConnection):
-    def get_variable(self, *, name: str, name_literal: bool = False) -> float | int | bool:
-        self
-        return super().get_variable(name=name, name_literal=name_literal)
-''' 
+
+class Sky(CloudConnection):
+    """
+    Multiple cloud connections in one.
+    """
+    def __init__(self, *clouds):
+        self.clouds = clouds
+        
+    def stop_thread(self):
+        """
+        Use for stopping the underlying threads.
+        """
+        for cloud in self.clouds:
+            cloud.stop_thread()
+        
+    def set_variable(
+        self,
+        *,
+        name : str,
+        value : Union[float, int, bool],
+        name_literal : bool = False,
+        context : Context
+    ):
+        """
+        Use for setting a cloud variable.
+        """
+        assert context in self.clouds or context._cloud in self.clouds, "Wrong context"
+        assert not (context is self or context._cloud is self), "Bad context"
+        context.set_var(name=name, value=value, name_literal=name_literal, context=context)
+        
+    def get_variable(
+        self,
+        *,
+        name : str,
+        name_literal : bool = False,
+        context : Context
+    ) -> Union[float, int, bool]:
+        """
+        Use for setting a cloud variable.
+        """
+        assert context in self.clouds or context._cloud in self.clouds, "Wrong context"
+        assert not (context is self or context._cloud is self), "Bad context"
+        return context.get_var(name=name, name_literal=name_literal, context=context)
+
+    def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event], context : Context, **entries) -> int:
+        """
+        Use for emitting events. Returns how many handlers could handle the event.
+        """
+        assert context in self.clouds or context._cloud in self.clouds, "Wrong context"
+        assert not (context is self or context._cloud is self), "Bad context"
+        return context.emit(event, context=context, **entries)
+        
+    def on(self, event : Literal["set", "delete", "connect", "create", "any"]) -> Callable[[Callable[[Event], None]], EventDispatcher]:
+        """
+        Register a new event.
+        """
+        def wrapper(func):
+            for cloud in self.clouds:
+                cloud.on(event)(func)
+            @wraps(func)
+            def dispatcher(data : dict = None, /, *, context : Context, **entries):
+                return self.emit_event(event, context=context, **data, **entries)
+            return dispatcher
+
+        return wrapper
