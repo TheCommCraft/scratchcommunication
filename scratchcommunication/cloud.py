@@ -30,6 +30,12 @@ class Context:
         Emit an event in this context.
         """
         return self._cloud.emit_event(event, context=context, **entries)
+    
+    def get_cloud_connection(self):
+        """
+        Returns the assiociated cloud connection.
+        """
+        return self._cloud
 
 class EventDispatcher(Protocol):
     def __call__(self, data : dict, **entries) -> None:
@@ -627,3 +633,7 @@ class Sky(CloudConnection):
             return dispatcher
 
         return wrapper
+    
+    @property
+    def _cloud(self):
+        raise NotImplementedError
