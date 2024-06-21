@@ -2,13 +2,13 @@ import os, sys
 from dotenv import load_dotenv
 load_dotenv()
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from manage_login import get_session
 from scratchcommunication import Session, Event
 import scratchcommunication
 
-USERNAME, PASSWORD = os.getenv("SCRATCH_USERNAME"), os.getenv("SCRATCH_PASSWORD")
 PROJECT_ID = os.getenv("PROJECT_ID")
 
-session = Session.login(USERNAME, PASSWORD)
+session = get_session()
 cloud = session.create_cloudconnection(PROJECT_ID)
 
 donit = set()

@@ -2,6 +2,7 @@ import os, sys
 from dotenv import load_dotenv
 load_dotenv()
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from manage_login import get_session
 from scratchcommunication import Session
 import scratchcommunication
 import json
@@ -12,7 +13,7 @@ PROJECT_ID = 884190099#os.getenv("PROJECT_ID")
 security = scratchcommunication.security.Security.from_string(os.getenv("SCRATCH_SECURITY"))#scratchcommunication.security.Security.generate()
 input(f"The public data is: \"{security.public_data}\". The string representation of the keys is: \"{security.to_string()}\". Press enter to continue")
 
-session = Session.login(USERNAME, PASSWORD)
+session = get_session()
 cloud = session.create_cloud_socket(PROJECT_ID, security=security)
 client = scratchcommunication.cloudrequests.RequestHandler(cloud_socket=cloud, uses_thread=True)
 

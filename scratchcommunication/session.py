@@ -53,6 +53,7 @@ class Session:
         '''
         Don't use this
         '''
+        assert self.session_id
         try:
             account = (_session or requests).post("https://scratch.mit.edu/session", headers=self.headers, cookies={
                 "scratchsessionsid": self.session_id,

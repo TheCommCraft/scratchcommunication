@@ -2,11 +2,12 @@
 Module for communicating with scratch projects.
 """
 
-__version_number__ = '2.10.7'
+__version_number__ = '2.11.1'
 
 from .session import *
 from .cloud import *
 from .cloudrequests import RequestHandler
+from .cloud_socket import CloudSocket
 
 from . import session
 from . import cloud

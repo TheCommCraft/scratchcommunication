@@ -1,4 +1,5 @@
-from .cloud import CloudConnection
+from __future__ import annotations
+from .cloud import CloudConnection, Context
 from . import security as sec
 import warnings
 from threading import Lock, Condition
@@ -115,7 +116,7 @@ class BaseCloudSocket:
         """
         raise NotImplementedError
 
-class BaseCloudSocketConnection:
+class BaseCloudSocketConnection(Context):
     """
     Base Class for handling incoming connections from a cloud socket
     """
@@ -255,7 +256,13 @@ class CloudSocket(BaseCloudSocket):
                     client_username = event.user
                 except NotSupported:
                     client_username = None
-                client_obj = CloudSocketConnection(cloud_socket=self, client_id=client, username=client_username, security=key)
+                client_obj = CloudSocketConnection(
+                    cloud_socket=self,
+                    client_id=client,
+                    username=client_username,
+                    security=key,
+                    context=event
+                )
                 self.clients[client] = client_obj
                 self.new_clients.append((client_obj, client_username))
                 with self.accepted:
@@ -336,7 +343,7 @@ class CloudSocketConnection(BaseCloudSocketConnection):
     """
     Class for handling incoming connections from a cloud socket
     """
-    def __init__(self, *, cloud_socket : BaseCloudSocket, client_id : str, username : str = None, security : str = None):
+    def __init__(self, *, cloud_socket : BaseCloudSocket, client_id : str, username : str = None, security : str = None, context : Context):
         self.cloud_socket = cloud_socket
         self.client_id = client_id
         self.username = username
@@ -348,6 +355,7 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         self.receiving = Lock()
         self.sending = Lock()
         self.received = Condition(Lock())
+        self._cloud = context._cloud
 
     def __enter__(self):
         return self
@@ -364,11 +372,17 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         for packet in packets[:-1]:
             salt = int(time.time() * 100)
             packet = self.cloud_socket._encode(self.encrypter.encrypt(packet, salt=salt))
-            self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"-{packet}{str(salt).zfill(15)}.{self.client_id}{random.randrange(1000):03}{packet_idx}")
+            self.set_var(
+                name=f"TO_CLIENT_{random.randint(1, 4)}",
+                value=f"-{packet}{str(salt).zfill(15)}.{self.client_id}{random.randrange(1000):03}{packet_idx}"
+            )
             packet_idx += 1
         salt = int(time.time() * 100)
         packet = self.cloud_socket._encode(self.encrypter.encrypt(packets[-1], salt=salt))
-        self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"{packet}{str(salt).zfill(15)}.{self.client_id}{random.randrange(1000):03}{packet_idx}")
+        self.set_var(
+            name=f"TO_CLIENT_{random.randint(1, 4)}",
+            value=f"{packet}{str(salt).zfill(15)}.{self.client_id}{random.randrange(1000):03}{packet_idx}"
+        )
     
     def send(self, data : str):
         """
@@ -382,9 +396,15 @@ class CloudSocketConnection(BaseCloudSocketConnection):
             packets = ["".join(i) for i in batched(data, self.cloud_socket.packet_size)]
             packet_idx = 0
             for packet in packets[:-1]:
-                self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"-{packet}.{self.client_id}{random.randrange(1000):03}{packet_idx}")
+                self.set_var(
+                    name=f"TO_CLIENT_{random.randint(1, 4)}",
+                    value=f"-{packet}.{self.client_id}{random.randrange(1000):03}{packet_idx}"
+                )
                 packet_idx += 1
-            self.cloud_socket.cloud.set_variable(name=f"TO_CLIENT_{random.randint(1, 4)}", value=f"{packets[-1]}.{self.client_id}{random.randrange(1000):03}{packet_idx}")
+            self.set_var(
+                name=f"TO_CLIENT_{random.randint(1, 4)}",
+                value=f"{packets[-1]}.{self.client_id}{random.randrange(1000):03}{packet_idx}"
+            )
 
     def recv(self, timeout : Union[float, None] = 10) -> str:
         """
