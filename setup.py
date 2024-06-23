@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
     
-VERSION = '2.11.2'
+VERSION = '2.11.3'
 
 setup(
     name='scratchcommunication',

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Literal, Union, Any, Protocol, assert_never, TypeVar
+from typing import Literal, Union, Any, Protocol, assert_never, TypeVar, Sequence
 from dataclasses import dataclass, field
 from collections.abc import Callable
 from functools import wraps
@@ -103,8 +103,8 @@ class CloudConnection(Context):
     username : str
     quickaccess : bool
     reconnect : bool
-    values : dict
-    events : dict
+    values : dict[str, Any]
+    events : dict[str, Sequence[Callable]]
     cloud_host : str
     accept_strs : bool
     wait_until : Union[float, int]
@@ -158,8 +158,8 @@ class CloudConnection(Context):
                 try:
                     self.receive_new_data()
                     return
-                except Exception:
-                    self._handle_connect()
+                except Exception as e:
+                    self._handle_connect(reconnect=True)
         self.data_reception = StoppableThread(target=self.receive_data, daemon=daemon_thread)
         self.data_reception.start()
 
@@ -199,10 +199,12 @@ class CloudConnection(Context):
             timeout=5
         )
     
-    def _handle_connect(self, *, retry : int = 3) -> Union[Exception, None]:
+    def _handle_connect(self, *, retry : int = 3, reconnect : bool = False) -> Union[Exception, None]:
         """
         Don't use this.
         """
+        if reconnect and not self.reconnect:
+            raise ConnectionError("The connection was closed.")
         try:
             self._connect()
             self.handshake()
@@ -310,7 +312,7 @@ class CloudConnection(Context):
                 raise ConnectionError(
                     "There was an error while setting the cloud variable."
                 ) from e
-            self._handle_connect()
+            self._handle_connect(reconnect=True)
             self._set_variable(name=name, value=value, retry=retry - 1)
 
     def set_variable(
@@ -399,7 +401,7 @@ class CloudConnection(Context):
             except WebSocketTimeoutException:
                 pass
             except WebSocketConnectionClosedException:
-                self._handle_connect()
+                self._handle_connect(reconnect=True)
 
     def receive_data(self):
         """
@@ -412,7 +414,7 @@ class CloudConnection(Context):
             except WebSocketTimeoutException:
                 pass
             except WebSocketConnectionClosedException:
-                self._handle_connect()
+                self._handle_connect(reconnect=True)
                 self._prepare_handle_connection()
                     
     def get_age_of_event(self, event : Event) -> int:
@@ -545,7 +547,7 @@ class TwCloudConnection(CloudConnection):
                     self.receive_new_data()
                     return
                 except Exception:
-                    self._handle_connect()
+                    self._handle_connect(reconnect=True)
         self.data_reception = StoppableThread(target=self.receive_data, daemon=daemon_thread)
         self.data_reception.start()
         
@@ -573,7 +575,7 @@ class Sky(CloudConnection):
     """
     Multiple cloud connections in one.
     """
-    def __init__(self, *clouds):
+    def __init__(self, *clouds : Sequence[CloudConnection]):
         self.clouds = clouds
         
     def stop_thread(self):

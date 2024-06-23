@@ -126,7 +126,7 @@ tw_cloud = scratchcommunication.TwCloudConnection(
 Or you could connect from your session
 
 ```python
-tw_cloud = session.create_turbowarp_cloudconnection(
+tw_cloud = session.create_turbowarp_cloudconnection( # You can replace "turbowarp" with "tw" to shorten your code if you like
     contact_info = "Your contact info",
     project_id = "Your project id here",
     username = None, # (Optional) Will default to your username
@@ -144,6 +144,19 @@ tw_cloud = session.create_turbowarp_cloudconnection(
 **Warning: You need to add sufficient contact_info for your turbowarp connection or it might not work!**
 
 To shorten it a bit you can also use `scratchcommunication.session.Session.create_tw_cloudconnection` instead of `scratchcommunication.session.Session.create_turbowarp_cloudconnection`.
+
+## Multiple cloud connections in one
+
+To combine multiple cloud connections into a single one (e.g. for cloud requests on turbowarp and scratch or multiple project ids) you can use a **"Sky"** (`scratchcommunication.cloud.Sky`).
+
+Example code:
+
+```python
+cloud_1 = session.create_cloudconnection(project_id="Main project id")
+cloud_2 = session.create_tw_cloudconnection(project_id="Main project id")
+cloud_3 = session.create_cloudconnection(project_id="Test project id")
+cloudy_sky = scratchcommunication.Sky(cloud_1, cloud_2, cloud_3)
+```
 
 ## Working with cloud variables
 
@@ -325,6 +338,13 @@ cloud_socket = session.create_turbowarp_cloud_socket( # session.create_tw_cloud_
     security = None, # (Optional) Allows for a secure connection. Recommended. Look at Cloud Socket Security for more info.
     allow_no_certificate = False
 )
+```
+
+You can also create a cloud socket from any cloud connection. This is useful if you want to use a [Sky](#multiple-cloud-connections-in-one) for your cloud socket.
+
+```python
+cloud_connection = ... # Your code to create your cloud connection here
+cloud_socket = scratchcommunication.CloudSocket(cloud=cloud_connection)
 ```
 
 [Cloud Socket Security](#cloud-socket-security)
