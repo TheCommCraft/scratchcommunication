@@ -75,36 +75,47 @@ class RequestHandler(BaseRequestHandler):
                             self.current_client_username = username
                             raw_sub_requests = [raw_request.strip() for raw_request in msg.split(";")]
                             sub_request_names = [re.match(r"\w+", raw_request).group() for raw_request in raw_sub_requests]
+                            sub_requests = []
                             for req_name, raw_req in zip(sub_request_names, raw_sub_requests):
-                                if re.match(r"\w+\(.*\)$", raw_req) and self.requests[req_name].allow_python_syntax:
+                                using_python_syntax = re.match(r"\w+\(.*\)$", raw_req)
+                                python_syntax_allowed = self.requests[req_name].allow_python_syntax
+                                if using_python_syntax and python_syntax_allowed:
                                     name, args, kwargs = parse_python_request(raw_req, req_name)
-                                elif not re.match(r"\w+\(.*\)$", raw_req):
+                                    sub_requests.append((name, args, kwargs))
+                                if not using_python_syntax:
                                     name, args, kwargs = parse_normal_request(raw_req, req_name)
-                                else:
+                                    sub_requests.append((name, args, kwargs))
+                                if using_python_syntax and not python_syntax_allowed:
                                     raise PermissionError("Python syntax is not allowed for this.")
                         except Exception:
                             response = "The command syntax was wrong."
                             warnings.warn("Received a request with an invalid syntax: \n"+traceback.format_exc(), RuntimeWarning)
                         else:
                             try:
-                                self.execute_request(name, args=args, kwargs=kwargs, client=client)
+                                for idx, (name, args, kwargs) in enumerate(sub_requests):
+                                    try:
+                                        self.execute_request(name, args=args, kwargs=kwargs, client=client, response=idx == len(sub_requests) - 1)
+                                    except Exception as e:
+                                        raise RuntimeError(f"Error in request \"{name}\" with args: {args} and kwargs: {kwargs}") from e
                                 response = None
                             except Exception:
                                 response = "Something went wrong."
-                                warnings.warn(f"Something went wrong with a request: {traceback.format_exc()}", RuntimeWarning)
+                                warnings.warn(f"Something went wrong with a request: \n{traceback.format_exc()}", RuntimeWarning)
                         if response:
                             client.send(response)
                 except Exception:
-                    warnings.warn(f"There was an uncaught error in the request handler: {traceback.format_exc()}", RuntimeWarning)
+                    warnings.warn(f"There was an uncaught error in the request handler: \n{traceback.format_exc()}", RuntimeWarning)
                 
     
-    def execute_request(self, name, *, args : Sequence[Any], kwargs : Mapping[str, Any], client : CloudSocketConnection) -> None:
+    def execute_request(self, name, *, args : Sequence[Any], kwargs : Mapping[str, Any], client : CloudSocketConnection, response : bool = True) -> None:
         """
         Execute a request.
         """
         request_handling_function = self.requests[name]
         args, kwargs, return_converter = type_casting(func=request_handling_function, signature=inspect.signature(request_handling_function), args=args, kwargs=kwargs)
         def respond():
+            if not response:
+                return
             try:
                 response = str(return_converter(request_handling_function(*args, **kwargs)))
             except ErrorMessage as e:

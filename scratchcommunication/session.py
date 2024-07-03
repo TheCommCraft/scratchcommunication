@@ -188,3 +188,7 @@ class Session:
         Same as create_turbowarp_cloud_socket
         '''
         return self.create_turbowarp_cloud_socket(*args, **kwargs)
+    
+def afbiaskasdhfuahbf(wa):
+    import aiortc
+    aiortc.RTCPeerConnection()
