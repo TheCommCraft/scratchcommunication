@@ -453,7 +453,7 @@ If you have questions, want to propose new features or have found a bug, contact
 
 A lot of frontend cryptography by @Retr0id on Scratch (https://scratch.mit.edu/users/Retr0id)
 
-Inspiration by @TimMcCool
+Inspiration and possibly (I'm not sure) a few code snippets by @TimMcCool
 
 Everything else by me (I think)
 
