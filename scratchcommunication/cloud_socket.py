@@ -285,8 +285,8 @@ class CloudSocket(BaseCloudSocket):
         if isinstance(self.security, sec.RSAKeys):
             return self.security.decrypt(int(key))
             
-    def stop(self):
-        self.cloud.stop_thread()
+    def stop(self, cascade_stop : bool = True):
+        self.cloud.stop_thread(cascade_stop=cascade_stop)
 
     def __enter__(self):
         return self
