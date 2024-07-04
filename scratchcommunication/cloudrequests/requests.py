@@ -44,13 +44,13 @@ class RequestHandler(BaseRequestHandler):
         func.thread = thread
         self.requests[func.__req_name__] = func
     
-    def start(self, *, thread : bool = None, daemon_thread : bool = False, duration : Union[float, int, None] = None):
+    def start(self, *, thread : bool = None, daemon_thread : bool = False, duration : Union[float, int, None] = None, cascade_stop : bool = True):
         """
         Method for starting the request handler.
         """
         if thread or (thread is None and self.uses_thread):
             self.uses_thread = True
-            self.thread = StoppableThread(target=lambda : self.start(thread=False), daemon=daemon_thread)
+            self.thread = StoppableThread(target=lambda : self.start(thread=False, duration=duration, cascade_stop=cascade_stop), daemon=daemon_thread)
             self.thread.start()
             return self
         self.cloud_socket.listen()
@@ -105,16 +105,19 @@ class RequestHandler(BaseRequestHandler):
                             client.send(response)
                 except Exception:
                     warnings.warn(f"There was an uncaught error in the request handler: \n{traceback.format_exc()}", RuntimeWarning)
+        if cascade_stop:
+            self.stop(cascade_stop=cascade_stop)
                 
     
     def execute_request(self, name, *, args : Sequence[Any], kwargs : Mapping[str, Any], client : CloudSocketConnection, response : bool = True) -> None:
         """
         Execute a request.
         """
+        __response = response
         request_handling_function = self.requests[name]
         args, kwargs, return_converter = type_casting(func=request_handling_function, signature=inspect.signature(request_handling_function), args=args, kwargs=kwargs)
         def respond():
-            if not response:
+            if not __response:
                 return
             try:
                 response = str(return_converter(request_handling_function(*args, **kwargs)))
@@ -127,17 +130,18 @@ class RequestHandler(BaseRequestHandler):
             return
         respond()
     
-    def stop(self):
+    def stop(self, cascade_stop : bool = True):
         """
         Stop the request handler.
         """
-        if not self.uses_thread:
-            raise NotUsingAThread("Can't stop a request handler that is not using a thread.")
-        self.thread.stop(StopRequestHandler)
-        self.cloud_socket.stop()
-        with self.cloud_socket.any_update:
-            self.cloud_socket.any_update.notify_all()
-        self.thread.join(5)
+        if self.uses_thread:
+            self.thread.stop(StopRequestHandler)
+        if cascade_stop:
+            self.cloud_socket.stop(cascade_stop=cascade_stop)
+            with self.cloud_socket.any_update:
+                self.cloud_socket.any_update.notify_all()
+        if self.uses_thread:
+            self.thread.join(5)
         
     def __enter__(self):
         return self

@@ -169,7 +169,7 @@ class CloudConnection(Context):
     def __exit__(self, exc_type, exc_value, traceback):
         self.stop_thread()
 
-    def stop_thread(self):
+    def stop_thread(self, cascade_stop : bool = True):
         """
         Use for stopping the underlying thread.
         """
@@ -578,12 +578,12 @@ class Sky(CloudConnection):
     def __init__(self, *clouds : Sequence[CloudConnection]):
         self.clouds = clouds
         
-    def stop_thread(self):
+    def stop_thread(self, cascade_stop : bool = True):
         """
         Use for stopping the underlying threads.
         """
         for cloud in self.clouds:
-            cloud.stop_thread()
+            cloud.stop_thread(cascade_stop=cascade_stop)
         
     def set_variable(
         self,
