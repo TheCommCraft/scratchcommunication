@@ -1,11 +1,19 @@
 from __future__ import annotations
 import random, os, sys, math, attrs, hashlib, json
 from io import BytesIO
-from itertools import batched
+from itertools import islice
 from Crypto.Cipher import AES
 from typing import Literal, Any, assert_never
 from cryptography.hazmat.primitives.asymmetric import x25519
 from binascii import unhexlify, hexlify
+
+def batched(iterable, n):
+    # batched('ABCDEFG', 3) --> ABC DEF G
+    if n < 1:
+        raise ValueError('n must be at least one')
+    it = iter(iterable)
+    while batch := tuple(islice(it, n)):
+        yield batch
 
 
 SECURITY_RSA = "RSA"
