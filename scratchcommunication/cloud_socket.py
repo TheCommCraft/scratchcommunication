@@ -181,7 +181,7 @@ class CloudSocket(BaseCloudSocket):
         self.received_any = Condition(Lock())
         self.any_update = Condition(Lock())
         
-    def listen(self):
+    def listen(self) -> Self:
         """
         Start the cloud socket.
         """
