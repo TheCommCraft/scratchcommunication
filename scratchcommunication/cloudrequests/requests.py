@@ -4,7 +4,7 @@ Submodule for handling incoming requests.
 import re, warnings, ast, inspect, traceback, time
 from inspect import Parameter
 from copy import deepcopy
-from typing import Union, Mapping, Sequence, Any, Callable
+from typing import Union, Mapping, Sequence, Any, Callable, Self
 from types import FunctionType
 from func_timeout import StoppableThread
 from scratchcommunication.cloud_socket import CloudSocketConnection, CloudSocket
@@ -44,7 +44,7 @@ class RequestHandler(BaseRequestHandler):
         func.thread = thread
         self.requests[func.__req_name__] = func
     
-    def start(self, *, thread : bool = None, daemon_thread : bool = False, duration : Union[float, int, None] = None, cascade_stop : bool = True):
+    def start(self, *, thread : bool = None, daemon_thread : bool = False, duration : Union[float, int, None] = None, cascade_stop : bool = True) -> Union[None, Self]:
         """
         Method for starting the request handler.
         """
