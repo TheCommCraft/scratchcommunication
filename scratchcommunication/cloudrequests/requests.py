@@ -117,12 +117,12 @@ class RequestHandler(BaseRequestHandler):
         request_handling_function = self.requests[name]
         args, kwargs, return_converter = type_casting(func=request_handling_function, signature=inspect.signature(request_handling_function), args=args, kwargs=kwargs)
         def respond():
-            if not __response:
-                return
             try:
                 response = str(return_converter(request_handling_function(*args, **kwargs)))
             except ErrorMessage as e:
                 response = " ".join(e.args)
+            if not __response:
+                return
             client.send(response)
         if request_handling_function.thread:
             thread = StoppableThread(target=respond)
