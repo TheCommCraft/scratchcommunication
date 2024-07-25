@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .cloud import CloudConnection, Context
+from .cloud import CloudConnection, Context, Event
 from . import security as sec
 import warnings
 from threading import Lock, Condition
@@ -77,7 +77,7 @@ class BaseCloudSocket:
     """
     security : Union[None, sec.ConnectSecurity]
     cloud : CloudConnection
-    clients : dict
+    clients : dict[str, BaseCloudSocketConnection]
     new_clients : list
     connecting_clients : list
     key_parts : dict
@@ -131,6 +131,7 @@ class BaseCloudSocketConnection(Context):
     receiving : Lock
     received : Condition
     sending : Lock
+    event : Event
     def __init__(self, *, cloud_socket : BaseCloudSocket, client_id : str, username : str = None, security : str = None):
         raise NotImplementedError
     
@@ -186,7 +187,7 @@ class CloudSocket(BaseCloudSocket):
         Start the cloud socket.
         """
         @self.cloud.on("set")
-        def on_packet(event):
+        def on_packet(event : Event):
             try:
                 assert event.type == "set"
                 assert event.name == "FROM_CLIENT"
@@ -212,11 +213,14 @@ class CloudSocket(BaseCloudSocket):
                 client = value.split(".", 1)[1][:5]
                 
                 if not (self._decode(msg_data[1:29]).startswith("_connect") or self._decode(msg_data[1:29]).startswith("_safe_connect:")) and client in self.clients and not self.clients[client].secure:
+                    event.emit("non_secure_message_part", client=self.clients[client], decoded=self._decode(msg_data), raw=msg_data)
                     self.clients[client].current_msg.add(msg_data)
+                    self.clients[client].event = event
                     assert not "-" in event.value
                     self.clients[client].current_msg.finalize()
-                    self.clients[client]._new_msg()
+                    event.emit("non_secure_message", client=self.clients[client], content=self.clients[client].current_msg)
                     self.clients[client].new_msgs.append(self.clients[client].current_msg)
+                    self.clients[client]._new_msg()
                     self.clients[client].current_msg = CloudSocketMSG()
                     return
                 
@@ -228,10 +232,13 @@ class CloudSocket(BaseCloudSocket):
                     assert salt < time.time() + 30, "Invalid salt(too big)"
                     self.last_timestamp = salt
                     self.clients[client].current_msg.add(" "+self.clients[client].encrypter.decrypt(self._decode(msg_data[1:-15]), msg_data[-15:]))
+                    self.clients[client].event = event
+                    event.emit("secure_message_part", client=self.clients[client], decoded=self.clients[client].encrypter.decrypt(self._decode(msg_data[1:-15]), msg_data[-15:]), raw=msg_data)
                     assert not "-" in event.value
                     self.clients[client].current_msg.finalize(decode=False)
-                    self.clients[client]._new_msg()
+                    event.emit("secure_message", client=self.clients[client], content=self.clients[client].current_msg)
                     self.clients[client].new_msgs.append(self.clients[client].current_msg)
+                    self.clients[client]._new_msg()
                     self.clients[client].current_msg = CloudSocketMSG()
                     return
                 
@@ -264,6 +271,9 @@ class CloudSocket(BaseCloudSocket):
                     context=event
                 )
                 self.clients[client] = client_obj
+                event.emit("new_user", client=client_obj)
+                if client_obj.secure:
+                    event.emit("new_secure_user", client=client_obj)
                 self.new_clients.append((client_obj, client_username))
                 with self.accepted:
                     self.accepted.notify_all()
@@ -356,6 +366,7 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         self.sending = Lock()
         self.received = Condition(Lock())
         self._cloud = context._cloud
+        self.event = context
 
     def __enter__(self):
         return self
