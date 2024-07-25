@@ -4,6 +4,7 @@ from . import security as sec
 import warnings
 from threading import Lock, Condition
 from typing import Union, Any, Self
+from weakref import proxy
 import random, time
 from itertools import islice
 from .exceptions import NotSupported
@@ -313,7 +314,10 @@ class CloudSocket(BaseCloudSocket):
         decoded = ""
         for char_pair in zip(data[::2], data[1::2]):
             char_idx = int(char_pair[0] + char_pair[1]) - 1
-            decoded += chars[char_idx]
+            try:
+                decoded += chars[char_idx]
+            except IndexError:
+                warnings.warn(f"There was an error in decoding a message: \"{data}\" has \"{chars[char_idx]}\" which doesn't exist.")
         return decoded
     
     @staticmethod
@@ -366,7 +370,7 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         self.sending = Lock()
         self.received = Condition(Lock())
         self._cloud = context._cloud
-        self.event = context
+        self.event = proxy(context)
 
     def __enter__(self):
         return self

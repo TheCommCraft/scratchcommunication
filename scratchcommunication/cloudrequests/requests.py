@@ -89,6 +89,10 @@ class RequestHandler(BaseRequestHandler):
                                     raise PermissionError("Python syntax is not allowed for this.")
                         except Exception:
                             response = "The command syntax was wrong."
+                            try:
+                                self.current_client.emit("invalid_syntax", content=msg, client=self.current_client)
+                            except Exception:
+                                pass
                             warnings.warn("Received a request with an invalid syntax: \n"+traceback.format_exc(), RuntimeWarning)
                         else:
                             try:
@@ -96,6 +100,10 @@ class RequestHandler(BaseRequestHandler):
                                     try:
                                         self.execute_request(name, args=args, kwargs=kwargs, client=client, response=idx == len(sub_requests) - 1)
                                     except Exception as e:
+                                        try:
+                                            self.current_client.emit("error_in_request", request=name, args=args, kwargs=kwargs, content=raw_sub_requests[idx], client=self.current_client)
+                                        except Exception:
+                                            pass
                                         raise RuntimeError(f"Error in request \"{name}\" with args: {args} and kwargs: {kwargs}") from e
                                 response = None
                             except Exception:
@@ -104,6 +112,10 @@ class RequestHandler(BaseRequestHandler):
                         if response:
                             client.send(response)
                 except Exception:
+                    try:
+                        self.current_client.emit("uncaught_error", uncaught_error=traceback.format_exc(), last_client=self.current_client, last_raw_request=msg)
+                    except Exception:
+                        pass
                     warnings.warn(f"There was an uncaught error in the request handler: \n{traceback.format_exc()}", RuntimeWarning)
         if cascade_stop:
             self.stop(cascade_stop=cascade_stop)

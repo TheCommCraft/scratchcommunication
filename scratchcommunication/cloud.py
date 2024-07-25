@@ -3,6 +3,7 @@ from typing import Literal, Union, Any, Protocol, assert_never, TypeVar, Sequenc
 from dataclasses import dataclass, field
 from collections.abc import Callable
 from functools import wraps
+from weakref import proxy
 from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException, EventExpiredError
 import scratchcommunication
 from func_timeout import StoppableThread
@@ -11,7 +12,7 @@ from websocket import WebSocket, WebSocketConnectionClosedException, WebSocketTi
 
 @dataclass
 class Context:
-    _cloud : CloudConnection = field(kw_only=True)
+    _cloud : CloudConnection = field(kw_only=True, repr=False)
     
     def set_var(self, name : str, value : Union[float, int, bool], *, name_literal : bool = False, context : Context = None):
         """
@@ -91,6 +92,9 @@ class Event(Context):
     
     def __hash__(self):
         return hash(self._id)
+    
+    def __repr__(self):
+        return f"<Event id={self._id}>"
 
 class CloudConnection(Context):
     """
@@ -455,7 +459,10 @@ class CloudConnection(Context):
         for event in self.processed_events.copy():
             if sys.getrefcount(event) <= 5:
                 self.processed_events.remove(event)
-                self.event_order.get(event.value).pop(event)
+                try:
+                    assert event in self.event_order.get(event.value)
+                except AssertionError:
+                    warnings.warn(f"There was an error in the garbage disposer: Where is {event._id} in {self.event_order}?")
 
     def _emit_event(self, event : Literal["set", "delete", "connect", "create", "any"], data : Event) -> int:
         """
