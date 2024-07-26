@@ -2,12 +2,15 @@ from __future__ import annotations
 from .cloud import CloudConnection, Context, Event
 from . import security as sec
 import warnings
+import sys
 from threading import Lock, Condition
 from typing import Union, Any, Self, Literal
 from weakref import proxy
 import random, time
 from itertools import islice
 from .exceptions import NotSupported
+
+sys.set_int_max_str_digits(99999)
 
 alphabet = "abcdefghijklmnopqrstuvwxyz"
 special_characters = " .,-:;_'#!\"§$%&/()=?{[]}\\0123456789<>ß*"
@@ -326,7 +329,7 @@ class CloudSocket(BaseCloudSocket):
         self.stop()
 
     @staticmethod
-    def _decode(data : int) -> str:
+    def _decode(data : str) -> str:
         """
         Decodes data sent from a client
         """
@@ -341,7 +344,7 @@ class CloudSocket(BaseCloudSocket):
         return decoded
     
     @staticmethod
-    def _encode(data : str) -> int:
+    def _encode(data : str) -> str:
         """
         Encodes data for a client
         """
@@ -351,7 +354,7 @@ class CloudSocket(BaseCloudSocket):
                 encoded += char_to_idx[char]
             except KeyError:
                 encoded += char_to_idx["?"]
-        return int(encoded)
+        return encoded
     
     def accept(self, timeout : Union[float, None] = 10) -> tuple[BaseCloudSocketConnection, str]:
         """
