@@ -408,13 +408,15 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         """
         packets = ["".join(i) for i in batched(data, self.cloud_socket.get_packet_size(client=self) // 2 - 28)]
         packet_idx = 0
+        var = 1
         for packet in packets[:-1]:
             salt = int(time.time() * 100)
             packet = self.cloud_socket._encode(self.encrypter.encrypt(packet, salt=salt))
             self.set_var(
-                name=f"TO_CLIENT_{random.randint(1, 4)}",
+                name=f"TO_CLIENT_{var}",
                 value=f"-{packet}{str(salt).zfill(15)}.{self.client_id}{random.randrange(1000):03}{packet_idx}"
             )
+            var = var % 4 + 1
             packet_idx += 1
         salt = int(time.time() * 100)
         packet = self.cloud_socket._encode(self.encrypter.encrypt(packets[-1], salt=salt))
@@ -434,11 +436,13 @@ class CloudSocketConnection(BaseCloudSocketConnection):
             data = str(self.cloud_socket._encode(data))
             packets = ["".join(i) for i in batched(data, self.cloud_socket.get_packet_size(client=self))]
             packet_idx = 0
+            var = 1
             for packet in packets[:-1]:
                 self.set_var(
-                    name=f"TO_CLIENT_{random.randint(1, 4)}",
+                    name=f"TO_CLIENT_{var}",
                     value=f"-{packet}.{self.client_id}{random.randrange(1000):03}{packet_idx}"
                 )
+                var = var % 4 + 1
                 packet_idx += 1
             self.set_var(
                 name=f"TO_CLIENT_{random.randint(1, 4)}",
