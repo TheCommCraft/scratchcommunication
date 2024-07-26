@@ -3,7 +3,7 @@ from .cloud import CloudConnection, Context, Event
 from . import security as sec
 import warnings
 from threading import Lock, Condition
-from typing import Union, Any, Self
+from typing import Union, Any, Self, Literal
 from weakref import proxy
 import random, time
 from itertools import islice
@@ -88,7 +88,7 @@ class BaseCloudSocket:
     accepted : Condition
     received_any : Condition
     any_update : Condition
-    def __init__(self, *, cloud : CloudConnection, packet_size : int = 220, security : Union[None, tuple, sec.Security] = None):
+    def __init__(self, *, cloud : CloudConnection, packet_size : Union[int, Literal["AUTO"]] = "AUTO", security : Union[None, tuple, sec.Security] = None):
         raise NotImplementedError
 
     def __enter__(self) -> Self:
@@ -116,6 +116,12 @@ class BaseCloudSocket:
         Returns a new client
         """
         raise NotImplementedError
+    
+    def get_packet_size(self, client : BaseCloudSocketConnection):
+        """
+        Get the packet size for a client.
+        """
+        raise NotImplementedError
 
 class BaseCloudSocketConnection(Context):
     """
@@ -133,6 +139,7 @@ class BaseCloudSocketConnection(Context):
     received : Condition
     sending : Lock
     event : Event
+    is_turbowarp : bool
     def __init__(self, *, cloud_socket : BaseCloudSocket, client_id : str, username : str = None, security : str = None):
         raise NotImplementedError
     
@@ -158,7 +165,7 @@ class CloudSocket(BaseCloudSocket):
     """
     Class for creating cloud sockets with projects
     """
-    def __init__(self, *, cloud : CloudConnection, packet_size : int = 220, security : Union[None, tuple, sec.Security] = None):
+    def __init__(self, *, cloud : CloudConnection, packet_size : Union[int, Literal["AUTO"]] = "AUTO", security : Union[None, tuple, sec.Security] = None):
         self.security = None
         security_type = None
         if isinstance(security, tuple):
@@ -284,6 +291,16 @@ class CloudSocket(BaseCloudSocket):
             except AssertionError:
                 pass
         return self
+    
+    def get_packet_size(self, client : BaseCloudSocketConnection):
+        """
+        Get the packet size for a client.
+        """
+        if self.packet_size != "AUTO":
+            return self.packet_size
+        if client.is_turbowarp:
+            return 98800
+        return 220
             
     def _decrypt_key(self, key : str) -> int:
         if isinstance(self.security, sec.ECSecurity):
@@ -297,6 +314,9 @@ class CloudSocket(BaseCloudSocket):
             return self.security.decrypt(int(key))
             
     def stop(self, cascade_stop : bool = True):
+        """
+        Stop the cloud socket.
+        """
         self.cloud.stop_thread(cascade_stop=cascade_stop)
 
     def __enter__(self):
@@ -321,7 +341,7 @@ class CloudSocket(BaseCloudSocket):
         return decoded
     
     @staticmethod
-    def _encode(data : str):
+    def _encode(data : str) -> int:
         """
         Encodes data for a client
         """
@@ -370,6 +390,7 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         self.sending = Lock()
         self.received = Condition(Lock())
         self._cloud = context._cloud
+        self.is_turbowarp = self._cloud.is_turbowarp
         self.event = proxy(context)
 
     def __enter__(self):
@@ -382,7 +403,7 @@ class CloudSocketConnection(BaseCloudSocketConnection):
         """
         Use for sending data to the client if secure
         """
-        packets = ["".join(i) for i in batched(data, self.cloud_socket.packet_size // 2 - 28)]
+        packets = ["".join(i) for i in batched(data, self.cloud_socket.get_packet_size(client=self) // 2 - 28)]
         packet_idx = 0
         for packet in packets[:-1]:
             salt = int(time.time() * 100)
@@ -408,7 +429,7 @@ class CloudSocketConnection(BaseCloudSocketConnection):
                 self._secure_send(data)
                 return
             data = str(self.cloud_socket._encode(data))
-            packets = ["".join(i) for i in batched(data, self.cloud_socket.packet_size)]
+            packets = ["".join(i) for i in batched(data, self.cloud_socket.get_packet_size(client=self))]
             packet_idx = 0
             for packet in packets[:-1]:
                 self.set_var(

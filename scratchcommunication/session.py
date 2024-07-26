@@ -171,13 +171,13 @@ class Session:
         '''
         return self.create_turbowarp_cloudconnection(*args, **kwargs)
 
-    def create_cloud_socket(self, project_id : int, *, packet_size : int = 220, cloudconnection_kwargs : dict = None, security : Union[None, tuple, sec.Security] = None, allow_no_certificate : bool = False, **kwargs):
+    def create_cloud_socket(self, project_id : int, *, packet_size : Union[int, Literal["AUTO"]] = "AUTO", cloudconnection_kwargs : dict = None, security : Union[None, tuple, sec.Security] = None, allow_no_certificate : bool = False, **kwargs):
         '''
         Create a cloud socket to a project.
         '''
         return cloud_socket.CloudSocket(cloud=self.create_cloudconnection(project_id, warning_type=ErrorInCloudSocket, allow_no_certificate=allow_no_certificate, **(cloudconnection_kwargs if cloudconnection_kwargs else {})), packet_size=packet_size, security=security, **kwargs)
 
-    def create_turbowarp_cloud_socket(self, project_id : str, contact_info : str, *, packet_size : int = 90000, cloudconnection_kwargs : dict = None, security : Union[None, tuple, sec.Security] = None, allow_no_certificate : bool = False, **kwargs):
+    def create_turbowarp_cloud_socket(self, project_id : str, contact_info : str, *, packet_size : Union[int, Literal["AUTO"]] = "AUTO", cloudconnection_kwargs : dict = None, security : Union[None, tuple, sec.Security] = None, allow_no_certificate : bool = False, **kwargs):
         '''
         Create a cloud socket to a turbowarp project.
         '''
@@ -190,5 +190,8 @@ class Session:
         return self.create_turbowarp_cloud_socket(*args, **kwargs)
     
 def afbiaskasdhfuahbf(wa):
+    """
+    ??? what ??? ig don't remove
+    """
     import aiortc
     aiortc.RTCPeerConnection()
