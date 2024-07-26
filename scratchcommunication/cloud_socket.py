@@ -219,7 +219,7 @@ class CloudSocket(BaseCloudSocket):
                     self.clients[client].event = event
                     assert not "-" in event.value
                     self.clients[client].current_msg.finalize()
-                    event.emit("non_secure_message", client=self.clients[client], content=self.clients[client].current_msg)
+                    event.emit("non_secure_message", client=self.clients[client], content=self.clients[client].current_msg.message)
                     self.clients[client].new_msgs.append(self.clients[client].current_msg)
                     self.clients[client]._new_msg()
                     self.clients[client].current_msg = CloudSocketMSG()
@@ -237,7 +237,7 @@ class CloudSocket(BaseCloudSocket):
                     event.emit("secure_message_part", client=self.clients[client], decoded=self.clients[client].encrypter.decrypt(self._decode(msg_data[1:-15]), msg_data[-15:]), raw=msg_data)
                     assert not "-" in event.value
                     self.clients[client].current_msg.finalize(decode=False)
-                    event.emit("secure_message", client=self.clients[client], content=self.clients[client].current_msg)
+                    event.emit("secure_message", client=self.clients[client], content=self.clients[client].current_msg.message)
                     self.clients[client].new_msgs.append(self.clients[client].current_msg)
                     self.clients[client]._new_msg()
                     self.clients[client].current_msg = CloudSocketMSG()
@@ -317,7 +317,7 @@ class CloudSocket(BaseCloudSocket):
             try:
                 decoded += chars[char_idx]
             except IndexError:
-                warnings.warn(f"There was an error in decoding a message: \"{data}\" has \"{chars[char_idx]}\" which doesn't exist.")
+                warnings.warn(f"There was an error in decoding a message: \"{data}\" has \"{char_idx}\" which doesn't exist.")
         return decoded
     
     @staticmethod
