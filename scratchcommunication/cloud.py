@@ -119,6 +119,7 @@ class CloudConnection(Context):
     keep_all_events : bool
     supports_cloud_logs : bool
     allow_no_certificate : bool
+    is_turbowarp : bool = False
     def __init__(
         self,
         *,
@@ -511,6 +512,7 @@ class TwCloudConnection(CloudConnection):
     """
     contact_info : str
     user_agent : str
+    is_turbowarp : bool = True
     def __init__(
         self, 
         *, 
