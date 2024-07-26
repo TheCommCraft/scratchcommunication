@@ -19,6 +19,7 @@ class BaseRequestHandler:
     thread : Union[StoppableThread, None] = field(init=False)
     current_client : Union[CloudSocketConnection, None] = field(init=False)
     current_client_username : Union[str, None] = field(init=False)
+    error_handler : Union[FunctionType, None] = field(init=False)
 
 class StopRequestHandler(BaseException):
     """
