@@ -20,6 +20,7 @@ class RequestHandler(BaseRequestHandler):
         self.thread = None
         self.current_client = None
         self.current_client_username = None
+        self.error_handler = None
         
     def request(self, func : FunctionType = None, *, name : str = None, auto_convert : bool = False, allow_python_syntax : bool = True, thread : bool = False) -> Union[FunctionType, None]:
         """
@@ -97,14 +98,7 @@ class RequestHandler(BaseRequestHandler):
                         else:
                             try:
                                 for idx, (name, args, kwargs) in enumerate(sub_requests):
-                                    try:
-                                        self.execute_request(name, args=args, kwargs=kwargs, client=client, response=idx == len(sub_requests) - 1)
-                                    except Exception as e:
-                                        try:
-                                            self.current_client.emit("error_in_request", request=name, args=args, kwargs=kwargs, content=raw_sub_requests[idx], client=self.current_client)
-                                        except Exception:
-                                            pass
-                                        raise RuntimeError(f"Error in request \"{name}\" with args: {args} and kwargs: {kwargs}") from e
+                                    self.execute_request(name, args=args, kwargs=kwargs, client=client, response=idx == len(sub_requests) - 1)
                                 response = None
                             except Exception:
                                 response = "Something went wrong."
@@ -128,11 +122,23 @@ class RequestHandler(BaseRequestHandler):
         __response = response
         request_handling_function = self.requests[name]
         args, kwargs, return_converter = type_casting(func=request_handling_function, signature=inspect.signature(request_handling_function), args=args, kwargs=kwargs)
-        def respond():
+        def respond(retried = False):
             try:
                 response = str(return_converter(request_handling_function(*args, **kwargs)))
             except ErrorMessage as e:
                 response = " ".join(e.args)
+            except Exception as e:
+                if self.error_handler and not retried:
+                    try:
+                        self.error_handler(e, lambda : respond(retried=True))
+                        return
+                    except Exception:
+                        pass
+                try:
+                    self.current_client.emit("error_in_request", request=name, args=args, kwargs=kwargs, client=self.current_client, error=e)
+                except Exception:
+                    pass
+                warnings.warn(f"Error in request \"{name}\" with args: {args} and kwargs: {kwargs}: \n{traceback.format_exc()}", RuntimeWarning)
             if not __response:
                 return
             client.send(response)
@@ -154,6 +160,9 @@ class RequestHandler(BaseRequestHandler):
                 self.cloud_socket.any_update.notify_all()
         if self.uses_thread:
             self.thread.join(5)
+            
+    def on_error(self, func : FunctionType):
+        self.error_handler = func
         
     def __enter__(self):
         return self
