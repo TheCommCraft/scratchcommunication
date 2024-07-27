@@ -132,8 +132,13 @@ class RequestHandler(BaseRequestHandler):
                     try:
                         self.error_handler(e, lambda : respond(retried=True))
                         return
-                    except Exception:
-                        pass
+                    except Exception as e2:
+                        try:
+                            self.current_client.emit("error_in_request", request=name, args=args, kwargs=kwargs, client=self.current_client, error=e)
+                        except Exception:
+                            pass
+                        warnings.warn(f"Error in request couldn't be handled \"{name}\" with args: {args} and kwargs: {kwargs}: \n{traceback.format_exc()}", RuntimeWarning)
+                        return
                 try:
                     self.current_client.emit("error_in_request", request=name, args=args, kwargs=kwargs, client=self.current_client, error=e)
                 except Exception:
