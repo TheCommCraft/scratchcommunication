@@ -204,15 +204,15 @@ class CloudSocket(BaseCloudSocket):
                 assert event.name == "FROM_CLIENT"
                 salt = 0
                 value = event.value.replace("-", "")
-                msg_data = value.split(".", 1)[0]
+                msg_data = value.split(".", 1)[0][1:]
                 msg_type = int(value[0])
                 
                 # Key fragment
                 
                 if msg_type == 0:
-                    key_part_id = msg_data[1:6]
+                    key_part_id = msg_data[:5]
                     assert not key_part_id in self.key_parts
-                    key_part = msg_data[6:]
+                    key_part = msg_data[5:]
                     self.key_parts[key_part_id] = key_part
                     if len(self.key_parts) >= 100:
                         for key_part_id in list(self.key_parts.keys())[:-100]:
@@ -223,7 +223,7 @@ class CloudSocket(BaseCloudSocket):
                 
                 client = value.split(".", 1)[1][:5]
                 
-                if not (self._decode(msg_data[1:29]).startswith("_connect") or self._decode(msg_data[1:29]).startswith("_safe_connect:")) and client in self.clients and not self.clients[client].secure:
+                if not (self._decode(msg_data[:28]).startswith("_connect") or self._decode(msg_data[:28]).startswith("_safe_connect:")) and client in self.clients and not self.clients[client].secure:
                     event.emit("non_secure_message_part", client=self.clients[client], decoded=self._decode(msg_data), raw=msg_data)
                     self.clients[client].current_msg.add(msg_data)
                     self.clients[client].event = event
@@ -237,14 +237,14 @@ class CloudSocket(BaseCloudSocket):
                 
                 # Secure message part
                 
-                if not (self._decode(msg_data[1:29]).startswith("_connect") or self._decode(msg_data[1:29]).startswith("_safe_connect:")) and client in self.clients and self.clients[client].secure:
+                if not (self._decode(msg_data[:28]).startswith("_connect") or self._decode(msg_data[:28]).startswith("_safe_connect:")) and client in self.clients and self.clients[client].secure:
                     salt = int(msg_data[-15:]) / 100
                     assert salt > self.last_timestamp, "Invalid salt(too little)"
                     assert salt < time.time() + 30, "Invalid salt(too big)"
                     self.last_timestamp = salt
-                    self.clients[client].current_msg.add(" "+self.clients[client].encrypter.decrypt(self._decode(msg_data[1:-15]), msg_data[-15:]))
+                    self.clients[client].current_msg.add(self.clients[client].encrypter.decrypt(self._decode(msg_data[:-15]), msg_data[-15:]))
                     self.clients[client].event = event
-                    event.emit("secure_message_part", client=self.clients[client], decoded=self.clients[client].encrypter.decrypt(self._decode(msg_data[1:-15]), msg_data[-15:]), raw=msg_data)
+                    event.emit("secure_message_part", client=self.clients[client], decoded=self.clients[client].encrypter.decrypt(self._decode(msg_data[:-15]), msg_data[-15:]), raw=msg_data)
                     assert not "-" in event.value
                     self.clients[client].current_msg.finalize(decode=False)
                     event.emit("secure_message", client=self.clients[client], content=self.clients[client].current_msg.message)
@@ -256,13 +256,13 @@ class CloudSocket(BaseCloudSocket):
                 # New secure user
                 
                 key = None
-                if self._decode(msg_data[1:29]).startswith("_safe_connect:"):
+                if self._decode(msg_data[:28]).startswith("_safe_connect:"):
                     assert self.security
                     salt = int(msg_data[-15:]) / 100
                     assert salt > self.last_timestamp, "Invalid salt(too little)"
                     assert salt < time.time() + 30, "Invalid salt(too big)"
                     self.last_timestamp = salt
-                    key_parts = [self.key_parts.get("".join(key_part)) for key_part in batched(msg_data[29:-15], 5)]
+                    key_parts = [self.key_parts.get("".join(key_part)) for key_part in batched(msg_data[28:-15], 5)]
                     assert not None in key_parts
                     c_key = "".join(key_parts)
                     key = self._decrypt_key(c_key)
@@ -487,7 +487,7 @@ class CloudSocketMSG(BaseCloudSocketMSG):
         self.complete = complete
         
     def add(self, data):
-        self.message += data[1:]
+        self.message += data
     
     def finalize(self, decode : bool = True):
         if decode:
