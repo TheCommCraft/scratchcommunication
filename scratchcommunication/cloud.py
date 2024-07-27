@@ -404,7 +404,7 @@ class CloudConnection(Context):
                 self.receive_new_data(first=True)
                 break
             except WebSocketTimeoutException:
-                pass
+                break
             except WebSocketConnectionClosedException:
                 self._handle_connect(reconnect=True)
 
