@@ -54,14 +54,14 @@ session = scratchcommunication.Session.from_browser(scratchcommunication.ANY)
 
 You can choose from these browsers:
 
-FIREFOX
-CHROME
-EDGE
-SAFARI
-CHROMIUM
-EDGE_DEV
-VIVALDI
-ANY
+`FIREFOX`
+`CHROME`
+`EDGE`
+`SAFARI`
+`CHROMIUM`
+`EDGE_DEV`
+`VIVALDI`
+`ANY`
 
 ## Access account data
 
