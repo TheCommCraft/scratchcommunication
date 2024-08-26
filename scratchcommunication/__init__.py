@@ -2,7 +2,7 @@
 Module for communicating with scratch projects.
 """
 
-__version_number__ = '2.14.4'
+__version_number__ = '2.14.5'
 
 from .session import *
 from .cloud import *
@@ -12,7 +12,7 @@ from .cloud_socket import CloudSocket
 from . import session
 from . import cloud
 from . import exceptions
-from . import headers
+from . import commons
 from . import security
 from . import cloud_socket
 from . import cloudrequests

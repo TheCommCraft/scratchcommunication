@@ -1,7 +1,7 @@
 import warnings
 import requests, json, re
 from typing import Literal, Self, assert_never, Union
-from .headers import headers
+from .commons import get_headers, get_cookies, Browser
 from .exceptions import InvalidValueError, ErrorInCloudSocket, NotSupported
 from . import cloud, cloud_socket
 from . import security as sec
@@ -11,16 +11,16 @@ try:
 except Exception as e:
     browsercookie = None
     browsercookie_err = e
-
-FIREFOX = 0
-CHROME = 1
-EDGE = 2
-SAFARI = 3
-CHROMIUM = 4
-EDGE_DEV = 5
-VIVALDI = 6
-ANY = 7
-
+    
+FIREFOX = Browser.FIREFOX
+CHROME = Browser.CHROME
+EDGE = Browser.EDGE
+SAFARI = Browser.SAFARI
+CHROMIUM = Browser.CHROMIUM
+EDGE_DEV = Browser.EDGE_DEV
+VIVALDI = Browser.VIVALDI
+ANY = Browser.ANY
+    
 class Session:
     __slots__ = ("session_id", "username", "headers", "cookies", "xtoken", "email", "id", "permissions", "flags", "banned", "session_data", "mute_status", "new_scratcher")
     def __init__(self, username : str = None, *, session_id : str = None, xtoken : str = None, _login : bool = True):
@@ -28,15 +28,9 @@ class Session:
             return
         self.session_id = session_id
         self.username = username
-        self.headers = headers
-        self.cookies = {
-            "scratchcsrftoken" : "a",
-            "scratchlanguage" : "en",
-            "scratchpolicyseen": "true",
-            "scratchsessionsid" : self.session_id,
-            "accept": "application/json",
-            "Content-Type": "application/json",
-        }
+        self.headers = get_headers()
+        self.cookies = get_cookies()
+        self.cookies["scratchsessionsid"] = session_id
         self._login(xtoken=xtoken)
 
     def __enter__(self):
@@ -83,43 +77,34 @@ class Session:
         self.headers["X-Token"] = xtoken
 
     @classmethod
-    def from_browser(cls, browser : Literal[0,1,2,3,4,5,6,7]) -> Self:
+    def from_browser(cls, browser : Browser) -> Self:
         """
         Import cookies from browser to login
         """
         if not browsercookie:
             raise NotSupported("You cannot use browsercookie") from browsercookie_err
-        match browser:
-            case 0:
-                cookies = browsercookie.firefox()
-            case 1:
-                cookies = browsercookie.chrome()
-            case 2:
-                cookies = browsercookie.edge()
-            case 3:
-                cookies = browsercookie.safari()
-            case 4:
-                cookies = browsercookie.chromium()
-            case 5:
-                cookies = browsercookie.edge_dev()
-            case 6:
-                cookies = browsercookie.vivaldi()
-            case 7:
-                cookies = browsercookie.load()
-            case _:
-                assert_never(browser)
+        if ANY in Browser:
+            cookies = browsercookie.load()
+        if FIREFOX in Browser:
+            cookies = browsercookie.firefox()
+        if CHROME in Browser:
+            cookies = browsercookie.chrome()
+        if EDGE in Browser:
+            cookies = browsercookie.edge()
+        if SAFARI in Browser:
+            cookies = browsercookie.safari()
+        if CHROMIUM in Browser:
+            cookies = browsercookie.chromium()
+        if EDGE_DEV in Browser:
+            cookies = browsercookie.edge_dev()
+        if FIREFOX in Browser:
+            cookies = browsercookie.vivaldi()
         
         with requests.Session() as session:
             session.cookies.update(cookies)
-            session.headers.update(headers)
+            session.headers.update(get_headers())
             obj = cls(_login=False)
-            obj.cookies = {
-                "scratchcsrftoken" : "a",
-                "scratchlanguage" : "en",
-                "scratchpolicyseen": "true",
-                "accept": "application/json",
-                "Content-Type": "application/json",
-            }
+            obj.cookies = get_cookies()
             obj.cookies.update(session.cookies.get_dict(".scratch.mit.edu"))
             obj.session_id = session.cookies.get_dict(".scratch.mit.edu").get("scratchsessionsid")
             obj.headers = session.headers
@@ -139,7 +124,7 @@ class Session:
                         "username": username,
                         "password": password
                     }),
-                    headers=headers,
+                    headers=get_headers(),
                     cookies={
                         "scratchcsrftoken": "a",
                         "scratchlanguage": "en"
