@@ -54,14 +54,14 @@ session = scratchcommunication.Session.from_browser(scratchcommunication.ANY)
 
 You can choose from these browsers:
 
-`FIREFOX`
-`CHROME`
-`EDGE`
-`SAFARI`
-`CHROMIUM`
-`EDGE_DEV`
-`VIVALDI`
-`ANY`
+FIREFOX
+CHROME
+EDGE
+SAFARI
+CHROMIUM
+EDGE_DEV
+VIVALDI
+ANY
 
 ## Access account data
 
@@ -320,7 +320,7 @@ To create a cloud socket you can use `scratchcommunication.session.Session.creat
 ```python
 cloud_socket = session.create_cloud_socket(
     project_id = "Your project id here",
-    packet_size = "AUTO", # (Optional) I recommend leaving this value be if you only use Scratch and Turbowarp.
+    packet_size = 220, # (Optional) I recommend leaving this value be if you only use Scratch and Turbowarp.
     cloudconnection_kwargs = None, # (Optional) Allows for adding keyword arguments for the Cloud Connection used in the cloud socket. Look at the documentation for Cloud Connection if you do not know which keyword arguments there are
     security = None, # (Optional) Allows for a secure connection. Recommended. Look at Cloud Socket Security for more info.
     allow_no_certificate = False # (Optional) Put to True if the SSL Certificate fails.
@@ -333,7 +333,7 @@ You can also use Turbowarp for cloud sockets.
 cloud_socket = session.create_turbowarp_cloud_socket( # session.create_tw_cloud_socket also works here
     contact_info = "Your contact info",
     project_id = "Your project id here",
-    packet_size = "AUTO", # (Optional) I recommend leaving this value be if you only use Scratch and Turbowarp.
+    packet_size = 220, # (Optional) I recommend leaving this value be if you only use Scratch and Turbowarp.
     cloudconnection_kwargs = None, # (Optional) Allows for adding keyword arguments for the Cloud Connection used in the cloud socket. Look at the documentation for Cloud Connection if you do not know which keyword arguments there are
     security = None, # (Optional) Allows for a secure connection. Recommended. Look at Cloud Socket Security for more info.
     allow_no_certificate = False
@@ -453,7 +453,7 @@ If you have questions, want to propose new features or have found a bug, contact
 
 A lot of frontend cryptography by @Retr0id on Scratch (https://scratch.mit.edu/users/Retr0id)
 
-Inspiration and possibly (I'm not sure) a few code snippets by @TimMcCool
+Inspiration by @TimMcCool
 
 Everything else by me (I think)
 

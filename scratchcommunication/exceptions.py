@@ -13,7 +13,7 @@ class ErrorInEventHandler(RuntimeWarning):
 class ErrorInCloudSocket(RuntimeWarning):
     pass
 
-class StopException(BaseException):
+class StopException(SystemExit):
     pass
 
 class EventExpiredError(Exception):
