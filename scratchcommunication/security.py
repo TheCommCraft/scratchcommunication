@@ -234,7 +234,7 @@ class Security:
     if __type == "RSA":
       return cls(data=RSAKeys.create_new_keys().keys, security_type="RSA")
     if __type != "EC":
-      assert_never()
+      assert_never(__type)
     scalar = bytearray(os.urandom(32))
     
     scalar[0] &= 248
