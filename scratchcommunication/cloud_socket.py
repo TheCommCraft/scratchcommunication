@@ -66,15 +66,15 @@ class BaseCloudSocketClient(ABC):
     def __exit__(self, exc_type, exc_value, traceback):
         pass
 
-    @abstractmethod
     @staticmethod
+    @abstractmethod
     def _decode(data : int):
         """
         Decodes data sent from the server
         """
 
-    @abstractmethod
     @staticmethod
+    @abstractmethod
     def _encode(data : str):
         """
         Encodes data for a client
