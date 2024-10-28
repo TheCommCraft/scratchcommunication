@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
     
-VERSION = '2.14.5'
+VERSION = '2.15.1'
 
 setup(
     name='scratchcommunication',
@@ -31,7 +31,9 @@ setup(
         'pycryptodome',
         'attrs',
         'browsercookie',
-        'cryptography'
+        'cryptography',
+        'super-session-keys',
+        'weakreflist',
     ],
     python_requires='>=3.11',
 )

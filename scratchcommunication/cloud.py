@@ -1,32 +1,34 @@
 from __future__ import annotations
-from typing import Literal, Union, Any, Protocol, assert_never, TypeVar, Sequence
+from typing import Literal, Union, Any, Protocol, Optional, Sequence
 from dataclasses import dataclass, field
 from collections.abc import Callable
 from functools import wraps
-from weakref import proxy
+from typing_extensions import deprecated
+from weakref import WeakValueDictionary
+from weakreflist import WeakList
 from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException, EventExpiredError
 import scratchcommunication
 from func_timeout import StoppableThread
-import json, time, requests, warnings, traceback, secrets, sys, ssl
+import json, time, requests, warnings, traceback, secrets, ssl
 from websocket import WebSocket, WebSocketConnectionClosedException, WebSocketTimeoutException
 
 @dataclass
 class Context:
     _cloud : CloudConnection = field(kw_only=True, repr=False)
     
-    def set_var(self, name : str, value : Union[float, int, bool], *, name_literal : bool = False, context : Context = None):
+    def set_var(self, name : str, value : Union[float, int, bool], *, name_literal : bool = False, context : Optional[Context] = None):
         """
         Set a variable in this context.
         """
         return self._cloud.set_variable(name=name, value=value, name_literal=name_literal, context=context)
         
-    def get_var(self, name : str, *, name_literal : bool = False, context : Context = None) -> Union[float, int, bool]:
+    def get_var(self, name : str, *, name_literal : bool = False, context : Optional[Context] = None) -> Union[float, int, bool]:
         """
         Get a variable in this context.
         """
         return self._cloud.get_variable(name=name, name_literal=name_literal, context=context)
     
-    def emit(self, event : Union[Event, Literal["set", "delete", "connect", "create"]], *, context : Context = None, **entries) -> int:
+    def emit(self, event : Union[Event, Literal["set", "delete", "connect", "create"], str], *, context : Optional[Context] = None, **entries) -> int:
         """
         Emit an event in this context.
         """
@@ -43,13 +45,13 @@ class EventDispatcher(Protocol):
         pass
 
 class Event(Context):
-    _id : int = None
-    value : Union[float, int, bool] = None
-    var : str = None
-    name : str = None
-    project : CloudConnection = None
-    type : str = None
-    def __init__(self, _type: Literal["set", "delete", "connect", "create"], **entries):
+    _id : Optional[int] = None
+    value : Optional[Union[float, int, bool]] = None
+    var : Optional[str] = None
+    name : Optional[str] = None
+    project : Optional[CloudConnection] = None
+    type : str
+    def __init__(self, _type: Union[Literal["set", "delete", "connect", "create"], str], **entries):
         entries["type"] = _type
         self.__dict__.update(entries)
         self._data = None
@@ -100,7 +102,7 @@ class CloudConnection(Context):
     """
     Connect to a cloud server and set cloud variables.
     """
-    project_id : int
+    project_id : Union[int, str]
     thread_running : bool
     warning_type : type[Warning]
     session : Any
@@ -113,19 +115,20 @@ class CloudConnection(Context):
     accept_strs : bool
     wait_until : Union[float, int]
     receive_from_websocket : bool
-    data_reception : Union[StoppableThread, None]
-    event_order : dict[Union[float, int, bool], dict[Event, int]]
-    processed_events : list[Event]
+    data_reception : Optional[StoppableThread] = None
+    event_order : WeakValueDictionary[Optional[Union[float, int, bool]], dict[Event, int]]
+    processed_events : WeakList[Event]
     keep_all_events : bool
     supports_cloud_logs : bool
     allow_no_certificate : bool
     is_turbowarp : bool = False
+    websocket : Optional[WebSocket] = None
     def __init__(
         self,
         *,
-        project_id : int,
+        project_id : Union[int, str],
         session : Any = None,
-        username : str = None,
+        username : Optional[str] = None,
         quickaccess : bool = False,
         reconnect : bool = True,
         receive_from_websocket : bool = True,
@@ -135,12 +138,13 @@ class CloudConnection(Context):
         keep_all_events : bool = False,
         allow_no_certificate : bool = False
     ):
-        self.websocket = None
         self.allow_no_certificate = allow_no_certificate
         self.supports_cloud_logs = True
         self.keep_all_events = keep_all_events
-        self.event_order = {}
-        self.processed_events = []
+        if keep_all_events:
+            warnings.warn("keep_all_events is deprecated. Keep a strong reference of events instead.", DeprecationWarning)
+        self.event_order = WeakValueDictionary()
+        self.processed_events = WeakList()
         self.thread_running = True
         self.warning_type = warning_type
         self.project_id = project_id
@@ -163,7 +167,7 @@ class CloudConnection(Context):
                 try:
                     self.receive_new_data()
                     return
-                except Exception as e:
+                except Exception:
                     self._handle_connect(reconnect=True)
         self.data_reception = StoppableThread(target=self.receive_data, daemon=daemon_thread)
         self.data_reception.start()
@@ -179,6 +183,7 @@ class CloudConnection(Context):
         Use for stopping the underlying thread.
         """
         self.thread_running = False
+        assert isinstance(self.data_reception, StoppableThread)
         self.data_reception.stop(StopException, 0.1)
         self.data_reception.join(5)
         
@@ -204,7 +209,7 @@ class CloudConnection(Context):
             timeout=5
         )
     
-    def _handle_connect(self, *, retry : int = 3, reconnect : bool = False) -> Union[Exception, None]:
+    def _handle_connect(self, *, retry : int = 3, reconnect : bool = False) -> Optional[Exception]:
         """
         Don't use this.
         """
@@ -227,8 +232,10 @@ class CloudConnection(Context):
                     "There was an error while connecting to the cloud server."
                 )
             exc = self._handle_connect(retry=retry - 1)
-            if exc:
+            if exc and retry == 3:
                 raise exc from e
+            return exc
+        return None
 
     def handshake(self):
         self.send_packet(
@@ -256,7 +263,7 @@ class CloudConnection(Context):
         """
         Use for getting the cloud logs of a project.
         """
-        logs = []
+        logs : list[dict[str, Any]] = []
         filter_by_name = (
             filter_by_name
             if filter_by_name_literal
@@ -326,7 +333,7 @@ class CloudConnection(Context):
         name : str,
         value : Union[float, int, bool],
         name_literal : bool = False,
-        context : Context = None
+        context : Optional[Context] = None
     ):
         """
         Use for setting a cloud variable.
@@ -349,7 +356,7 @@ class CloudConnection(Context):
         )
 
     def get_variable(
-        self, *, name : str, name_literal : bool = False, context : Context = None
+        self, *, name : str, name_literal : bool = False, context : Optional[Context] = None
     ) -> Union[float, int, bool]:
         """
         Use for getting the value of a cloud variable.
@@ -364,7 +371,7 @@ class CloudConnection(Context):
                 pass
         try:
             return (self.get_cloud_logs(
-                project_id=self.project_id,
+                project_id=str(self.project_id),
                 limit=1,
                 filter_by_name=name,
                 filter_by_name_literal=True,
@@ -386,7 +393,13 @@ class CloudConnection(Context):
         """
         Use for receiving new cloud data.
         """
-        data = [json.loads(j) for j in self.websocket.recv().split("\n") if j]
+        assert self.websocket is not None
+        packet = self.websocket.recv()
+        if isinstance(packet, bytes):
+            packet_string = packet.decode("utf-8")
+        else:
+            packet_string = packet
+        data = [json.loads(j) for j in packet_string.split("\n") if j]
         
         for i in data:
             i["var"] = i["name"]
@@ -431,7 +444,7 @@ class CloudConnection(Context):
         except KeyError:
             raise ValueError("No such event")
 
-    def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event], context : Context = None, **entries) -> int:
+    def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event, str], context : Optional[Context] = None, **entries) -> int:
         """
         Use for emitting events. Returns how many handlers could handle the event.
         """
@@ -446,26 +459,16 @@ class CloudConnection(Context):
         self.event_order[data.value][data] = len(self.event_order[data.value])
         amount = self._emit_event(event, data) + self._emit_event("any", data)
         self.processed_events.append(data)
-        if not self.keep_all_events:
-            self.garbage_disposal_of_events()
         return amount
     
+    @deprecated("Not needed anymore.")
     def garbage_disposal_of_events(self, force_disposal : bool = False) -> int:
         """
-        Dispose of all unused events
+        Don't use anymore
         """
-        if self.keep_all_events and not force_disposal:
-            warnings.warn("Attempted to dispose of all events with keep_all_events enabled. Try to set force_disposal=True in order to force garbage disposal.", UserWarning)
-            return
-        for event in self.processed_events.copy():
-            if sys.getrefcount(event) <= 5:
-                self.processed_events.remove(event)
-                try:
-                    assert event in self.event_order.get(event.value)
-                except AssertionError:
-                    warnings.warn(f"There was an error in the garbage disposer: Where is {event._id} in {self.event_order}?")
+        return 0
 
-    def _emit_event(self, event : Literal["set", "delete", "connect", "create", "any"], data : Event) -> int:
+    def _emit_event(self, event : Union[Literal["set", "delete", "connect", "create", "any"], str], data : Event) -> int:
         """
         Don't use this.
         """
@@ -483,7 +486,7 @@ class CloudConnection(Context):
                 )
         return amount
 
-    def on(self, event : Literal["set", "delete", "connect", "create", "any"]) -> Callable[[Callable[[Event], None]], EventDispatcher]:
+    def on(self, event : Union[Literal["set", "delete", "connect", "create", "any"], str]) -> Callable[[Callable[[Event], None]], EventDispatcher]:
         """
         Register a new event.
         """
@@ -495,8 +498,8 @@ class CloudConnection(Context):
                 eventlist = self.events[event] = []
             eventlist.append(func)
             @wraps(func)
-            def dispatcher(data : dict = None, /, *, context : Context = None, **entries):
-                return self.emit_event(event, context=context, **data, **entries)
+            def dispatcher(data : Optional[dict] = None, /, *, context : Optional[Context] = None, **entries):
+                return self.emit_event(event, context=context, **(data or {}), **entries)
             return dispatcher
 
         return wrapper
@@ -584,13 +587,15 @@ class Sky(CloudConnection):
     """
     Multiple cloud connections in one.
     """
-    def __init__(self, *clouds : Sequence[CloudConnection]):
+    def __init__(self, *clouds : CloudConnection):
         self.clouds = clouds
         
     def stop_thread(self, cascade_stop : bool = True):
         """
         Use for stopping the underlying threads.
         """
+        if not cascade_stop:
+            warnings.warn("stop_thread with cascade_stop on doesn't do anything", RuntimeWarning)
         for cloud in self.clouds:
             cloud.stop_thread(cascade_stop=cascade_stop)
         
@@ -600,11 +605,12 @@ class Sky(CloudConnection):
         name : str,
         value : Union[float, int, bool],
         name_literal : bool = False,
-        context : Context
+        context : Optional[Context] = None
     ):
         """
         Use for setting a cloud variable.
         """
+        assert context
         assert context in self.clouds or context._cloud in self.clouds, "Wrong context"
         assert not (context is self or context._cloud is self), "Bad context"
         context.set_var(name=name, value=value, name_literal=name_literal, context=context)
@@ -614,24 +620,26 @@ class Sky(CloudConnection):
         *,
         name : str,
         name_literal : bool = False,
-        context : Context
+        context : Optional[Context] = None
     ) -> Union[float, int, bool]:
         """
         Use for setting a cloud variable.
         """
+        assert context
         assert context in self.clouds or context._cloud in self.clouds, "Wrong context"
         assert not (context is self or context._cloud is self), "Bad context"
         return context.get_var(name=name, name_literal=name_literal, context=context)
 
-    def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event], context : Context, **entries) -> int:
+    def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event, str], context : Optional[Context] = None, **entries) -> int:
         """
         Use for emitting events. Returns how many handlers could handle the event.
         """
+        assert context
         assert context in self.clouds or context._cloud in self.clouds, "Wrong context"
         assert not (context is self or context._cloud is self), "Bad context"
         return context.emit(event, context=context, **entries)
         
-    def on(self, event : Literal["set", "delete", "connect", "create", "any"]) -> Callable[[Callable[[Event], None]], EventDispatcher]:
+    def on(self, event : Union[Literal["set", "delete", "connect", "create", "any"], str]) -> Callable[[Callable[[Event], None]], EventDispatcher]:
         """
         Register a new event.
         """
@@ -639,8 +647,8 @@ class Sky(CloudConnection):
             for cloud in self.clouds:
                 cloud.on(event)(func)
             @wraps(func)
-            def dispatcher(data : dict = None, /, *, context : Context, **entries):
-                return self.emit_event(event, context=context, **data, **entries)
+            def dispatcher(data : Optional[dict] = None, /, *, context : Context, **entries):
+                return self.emit_event(event, context=context, **(data or {}), **entries)
             return dispatcher
 
         return wrapper

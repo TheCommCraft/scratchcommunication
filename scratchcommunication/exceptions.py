@@ -1,6 +1,3 @@
-class InvalidValueError(ValueError):
-    pass
-
 class QuickAccessDisabledError(Exception):
     pass
 
@@ -17,4 +14,7 @@ class StopException(SystemExit):
     pass
 
 class EventExpiredError(Exception):
+    pass
+
+class LoginFailure(Exception):
     pass

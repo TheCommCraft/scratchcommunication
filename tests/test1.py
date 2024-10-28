@@ -8,6 +8,8 @@ import scratchcommunication
 
 PROJECT_ID = os.getenv("PROJECT_ID")
 
+assert PROJECT_ID
+
 session = get_session()
 cloud = session.create_cloudconnection(PROJECT_ID)
 
