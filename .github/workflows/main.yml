@@ -9,7 +9,9 @@
 name: Upload scratchcommunication
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
   contents: read
