@@ -1,14 +1,15 @@
 """
 Submodule for handling incoming requests.
 """
+from __future__ import annotations
 import re, warnings, ast, inspect, traceback, time
 from inspect import Parameter
 from copy import deepcopy
-from typing import Union, Mapping, Sequence, Any, Callable, Self
+from typing import Union, Mapping, Sequence, Any, Callable, Self, Optional
 from types import FunctionType
 from func_timeout import StoppableThread
-from scratchcommunication.cloud_socket import CloudSocketConnection, CloudSocket
-from .basetypes import BaseRequestHandler, StopRequestHandler, NotUsingAThread
+from scratchcommunication.cloud_socket import BaseCloudSocketConnection, CloudSocket
+from .basetypes import BaseRequestHandler, StopRequestHandler, SpecificRequestHandler
 
 class RequestHandler(BaseRequestHandler):
     """
@@ -22,30 +23,23 @@ class RequestHandler(BaseRequestHandler):
         self.current_client_username = None
         self.error_handler = None
         
-    def request(self, func : FunctionType = None, *, name : str = None, auto_convert : bool = False, allow_python_syntax : bool = True, thread : bool = False) -> Union[FunctionType, None]:
+    def request(self, func : Optional[FunctionType] = None, *, name : Optional[str] = None, auto_convert : bool = False, allow_python_syntax : bool = True, thread : bool = False) -> Optional[Callable]:
         """
         Decorator for adding requests.
         """
         if func:
-            func.__req_name__ = name or func.__name__
-            func.auto_convert = auto_convert
-            func.allow_python_syntax = allow_python_syntax
-            func.thread = thread
-            self.requests[func.__req_name__] = func
-            return
+            self.add_request(func, name=name, auto_convert=auto_convert, allow_python_syntax=allow_python_syntax, thread=thread)
+            return None
         return lambda x : self.request(x, name=name, auto_convert=auto_convert, allow_python_syntax=allow_python_syntax)
     
-    def add_request(self, func : FunctionType, *, name : str = None, auto_convert : bool = False, allow_python_syntax : bool = True, thread : bool = False):
+    def add_request(self, func : FunctionType, *, name : Optional[str] = None, auto_convert : bool = False, allow_python_syntax : bool = True, thread : bool = False):
         """
         Method for adding requests.
         """
-        func.__req_name__ = name or func.__name__
-        func.auto_convert = auto_convert
-        func.allow_python_syntax = allow_python_syntax
-        func.thread = thread
-        self.requests[func.__req_name__] = func
+        request_handler = SpecificRequestHandler(func, name=name or func.__name__, auto_convert=auto_convert, allow_python_syntax=allow_python_syntax, thread=thread)
+        self.requests[request_handler.name] = request_handler
     
-    def start(self, *, thread : bool = None, daemon_thread : bool = False, duration : Union[float, int, None] = None, cascade_stop : bool = True) -> Union[None, Self]:
+    def start(self, *, thread : Optional[bool] = None, daemon_thread : bool = False, duration : Union[float, int, None] = None, cascade_stop : bool = True) -> Optional[Self]:
         """
         Method for starting the request handler.
         """
@@ -56,7 +50,7 @@ class RequestHandler(BaseRequestHandler):
             return self
         self.cloud_socket.listen()
         with self.cloud_socket.any_update:
-            clients : list[tuple[CloudSocketConnection, str]] = []
+            clients : list[tuple[BaseCloudSocketConnection, str]] = []
             end_time = duration and (time.time() + duration)
             while (not end_time) or time.time() < end_time:
                 success = self.cloud_socket.any_update.wait(30)
@@ -70,14 +64,17 @@ class RequestHandler(BaseRequestHandler):
                             msg = client.recv(timeout=0)
                         except TimeoutError:
                             continue
-                        response = "No response."
+                        response : Optional[str] = "No response."
                         try:
                             self.current_client = client
                             self.current_client_username = username
                             raw_sub_requests = [raw_request.strip() for raw_request in msg.split(";")]
-                            sub_request_names = [re.match(r"\w+", raw_request).group() for raw_request in raw_sub_requests]
+                            sub_request_names = [re.match(r"\w+", raw_request) for raw_request in raw_sub_requests]
                             sub_requests = []
-                            for req_name, raw_req in zip(sub_request_names, raw_sub_requests):
+                            for req_name_match, raw_req in zip(sub_request_names, raw_sub_requests):
+                                if req_name_match is None:
+                                    continue
+                                req_name = req_name_match.group()
                                 using_python_syntax = re.match(r"\w+\(.*\)$", raw_req)
                                 python_syntax_allowed = self.requests[req_name].allow_python_syntax
                                 if using_python_syntax and python_syntax_allowed:
@@ -91,7 +88,8 @@ class RequestHandler(BaseRequestHandler):
                         except Exception:
                             response = "The command syntax was wrong."
                             try:
-                                self.current_client.emit("invalid_syntax", content=msg, client=self.current_client)
+                                if self.current_client is not None:
+                                    self.current_client.emit("invalid_syntax", content=msg, client=self.current_client)
                             except Exception:
                                 pass
                             warnings.warn("Received a request with an invalid syntax: \n"+traceback.format_exc(), RuntimeWarning)
@@ -107,21 +105,23 @@ class RequestHandler(BaseRequestHandler):
                             client.send(response)
                 except Exception:
                     try:
-                        self.current_client.emit("uncaught_error", uncaught_error=traceback.format_exc(), last_client=self.current_client, last_raw_request=msg)
+                        if self.current_client is not None:
+                            self.current_client.emit("uncaught_error", uncaught_error=traceback.format_exc(), last_client=self.current_client, last_raw_request=msg)
                     except Exception:
                         pass
                     warnings.warn(f"There was an uncaught error in the request handler: \n{traceback.format_exc()}", RuntimeWarning)
         if cascade_stop:
             self.stop(cascade_stop=cascade_stop)
+        return None
                 
     
-    def execute_request(self, name, *, args : Sequence[Any], kwargs : Mapping[str, Any], client : CloudSocketConnection, response : bool = True) -> None:
+    def execute_request(self, name, *, args : Sequence[Any], kwargs : Mapping[str, Any], client : BaseCloudSocketConnection, response : bool = True) -> None:
         """
         Execute a request.
         """
         __response = response
         request_handling_function = self.requests[name]
-        args, kwargs, return_converter = type_casting(func=request_handling_function, signature=inspect.signature(request_handling_function), args=args, kwargs=kwargs)
+        args, kwargs, return_converter = type_casting(func=request_handling_function.function, signature=inspect.signature(request_handling_function), args=args, kwargs=kwargs)
         def respond(retried = False):
             try:
                 response = str(return_converter(request_handling_function(*args, **kwargs)))
@@ -157,13 +157,13 @@ class RequestHandler(BaseRequestHandler):
         """
         Stop the request handler.
         """
-        if self.uses_thread:
+        if self.uses_thread and self.thread is not None:
             self.thread.stop(StopRequestHandler)
         if cascade_stop:
             self.cloud_socket.stop(cascade_stop=cascade_stop)
             with self.cloud_socket.any_update:
                 self.cloud_socket.any_update.notify_all()
-        if self.uses_thread:
+        if self.uses_thread and self.thread is not None:
             self.thread.join(5)
             
     def on_error(self, func : FunctionType):
@@ -190,7 +190,7 @@ def type_cast(func):
     wrapper.__name__ = func.__name__
     return wrapper
 
-def type_casting(*, func : FunctionType, signature : inspect.Signature, args : tuple, kwargs : dict) -> tuple[tuple, dict, Callable]:
+def type_casting(*, func : FunctionType, signature : inspect.Signature, args : Sequence, kwargs : Mapping) -> tuple[tuple, dict, Callable]:
     args = list(deepcopy(args))
     kwargs = dict(deepcopy(kwargs))
     for idx, ((kw, param), arg) in enumerate(zip(signature.parameters.items(), args)):
@@ -236,20 +236,20 @@ def type_casting(*, func : FunctionType, signature : inspect.Signature, args : t
     return_callable = DO_NOTHING
     if signature.return_annotation != inspect.Signature.empty and signature.return_annotation != Any:
         return_callable = signature.return_annotation
-    return args, kwargs, return_callable
+    return (tuple(args), kwargs, return_callable)
 
-def parse_python_request(msg : str, name : str):
+def parse_python_request(msg : str, name : str) -> tuple[str, tuple[Any, ...], dict[Any, Any]]:
     """
     Parse a request in the format of a python function call.
     """
-    parsed = ast.parse(msg).body[0].value
-    assert parsed.func.id == name
-    name = parsed.func.id
-    args = [arg.value for arg in parsed.args]
+    parsed = getattr(ast.parse(msg).body[0], "value")
+    assert getattr(parsed, "func").id == name
+    name = getattr(parsed, "func").id
+    args = [arg.value for arg in getattr(parsed, "args")]
     kwargs = {kwarg.arg: kwarg.value.value for kwarg in parsed.keywords}
-    return name, args, kwargs
+    return (name, tuple(args), kwargs)
 
-def parse_normal_request(msg : str, name : str):
+def parse_normal_request(msg : str, name : str) -> tuple[str, tuple[Any, ...], dict[Any, Any]]:
     """
     Parse a request in the normal format.
     """
@@ -259,9 +259,10 @@ def parse_normal_request(msg : str, name : str):
     FLT = "float"
     ID = "id"
     MT = "space"
+    open_type = "'"
     mode = ID
     content = ""
-    args = []
+    args : list[Any] = []
     while True:
         try:
             n = next(i)
@@ -313,8 +314,7 @@ def parse_normal_request(msg : str, name : str):
             args.append(float(content) if mode == FLT else (int(content) if mode == NUM else content))
             break
     assert args.pop(0) == name
-    return name, args, {}
-
+    return (name, tuple(args), {})
 
 class ErrorMessage(Exception):
     """

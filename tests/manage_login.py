@@ -14,8 +14,11 @@ def get_session() -> Session:
         XTOKEN = data.get("XTOKEN")
     USERNAME, PASSWORD = os.getenv("SCRATCH_USERNAME"), os.getenv("SCRATCH_PASSWORD")
     
+    assert USERNAME
+    assert PASSWORD
+    
     try:
-        session = Session(username=USERNAME, session_id=SESSION_ID, xtoken=XTOKEN)
+        session = Session(USERNAME, session_id=SESSION_ID, xtoken=XTOKEN)
     except Exception:
         pass
     else:

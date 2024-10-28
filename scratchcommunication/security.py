@@ -3,7 +3,7 @@ import random, os, sys, math, attrs, hashlib, json
 from io import BytesIO
 from itertools import islice
 from Crypto.Cipher import AES
-from typing import Literal, Any, assert_never
+from typing import Literal, Any, assert_never, Optional
 from cryptography.hazmat.primitives.asymmetric import x25519
 from binascii import unhexlify, hexlify
 
@@ -87,7 +87,7 @@ class ConnectSecurity(tuple):
   pass
 
 class RSAKeys(ConnectSecurity):
-  def __new__(cls, keys : tuple[int, int, int] = None, *, public_exponent : int = None, private_exponent : int = None, public_modulus : int = None):
+  def __new__(cls, keys : Optional[tuple[int, int, int]] = None, *, public_exponent : Optional[int] = None, private_exponent : Optional[int] = None, public_modulus : Optional[int] = None):
     if keys is not None:
       public_exponent, private_exponent, public_modulus = keys
     if (public_exponent and private_exponent and public_modulus) is None:
@@ -158,9 +158,9 @@ class OldSymmetricEncryption:
 
   def decrypt(self, data : str, salt : int = 0) -> str:
     decrypted = ""
-    seed, message_length, encrypted = data.split(":", 2)
-    seed = int(seed)
-    message_length = int(message_length)
+    seed_, message_length_, encrypted = data.split(":", 2)
+    seed = int(seed_)
+    message_length = int(message_length_)
     modulus = 13
     for i in str(self.key) + str(salt):
       modulus += int(i)
@@ -182,7 +182,7 @@ class SymmetricEncryption:
   key : int
   hashed_key : bytes = attrs.field(init=False)
   
-  def __init__(self, key : int, hashed_key : bytes = None) -> None:
+  def __init__(self, key : int, hashed_key : Optional[bytes] = None) -> None:
     self.key = key
     self.hashed_key = hashed_key or hashlib.sha256(bytes(str(key), "utf-8")[-53:]).digest()[:16]
   
@@ -203,9 +203,9 @@ class SymmetricEncryption:
 
   def decrypt(self, data : str, salt : int = 0) -> str:
     decrypted = ""
-    seed, message_length, encrypted = data.split(":", 2)
-    seed = int(seed)
-    message_length = int(message_length)
+    seed_, message_length_, encrypted = data.split(":", 2)
+    seed = int(seed_)
+    message_length = int(message_length_)
     aes = AES.new(bin_xor(self.hashed_key, salt), AES.MODE_ECB)
     aes_pass = 0
     shifts = None
@@ -265,10 +265,11 @@ class Security:
     
   @classmethod
   def from_string(cls, data : str) -> Security:
-    s_type = data[:8]
-    if s_type == "RSAxxxx1":
+    s_type_ = data[:8]
+    s_type : Literal["RSA", "EC"]
+    if s_type_ == "RSAxxxx1":
       s_type = "RSA"
-    elif s_type == "ECxxxxx1":
+    elif s_type_ == "ECxxxxx1":
       s_type = "EC"
     else:
       raise ValueError("Unknown format")
