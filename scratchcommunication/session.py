@@ -122,9 +122,9 @@ class Session(Sessionable):
         '''
         Don't use this
         '''
-        assert self.session_id
-        self.cookies["scratchsessionsid"] = self.session_id
         try:
+            assert self.session_id
+            self.cookies["scratchsessionsid"] = self.session_id
             account = (_session or requests).post("https://scratch.mit.edu/session", headers=self.headers, cookies={
                 "scratchsessionsid": self.session_id,
                 "scratchcsrftoken": "a",
