@@ -12,6 +12,7 @@ def register_undo(cloud : CloudConnection):
         @cloud.on("set")
         def on_set(event : Event):
             if func(event):
+                assert event.var is not None
                 event.set_var(event.var, value=old_values[event.var], name_literal=True)
                 return
             old_values[event.var] = event.value
