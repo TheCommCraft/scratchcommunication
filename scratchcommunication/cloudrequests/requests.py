@@ -8,14 +8,14 @@ from copy import deepcopy
 from typing import Union, Mapping, Sequence, Any, Callable, Self, Optional
 from types import FunctionType
 from func_timeout import StoppableThread
-from scratchcommunication.cloud_socket import BaseCloudSocketConnection, CloudSocket
+from scratchcommunication.cloud_socket import BaseCloudSocketConnection, AnyCloudSocket
 from .basetypes import BaseRequestHandler, StopRequestHandler, SpecificRequestHandler
 
 class RequestHandler(BaseRequestHandler):
     """
     Class for request handlers.
     """
-    def __init__(self, *, cloud_socket : CloudSocket, uses_thread : bool = False):
+    def __init__(self, *, cloud_socket : AnyCloudSocket, uses_thread : bool = False):
         super().__init__(cloud_socket=cloud_socket, uses_thread=uses_thread)
         self.requests = {}
         self.thread = None
@@ -49,109 +49,156 @@ class RequestHandler(BaseRequestHandler):
             self.thread.start()
             return self
         self.cloud_socket.listen()
-        with self.cloud_socket.any_update:
-            clients : list[tuple[BaseCloudSocketConnection, str]] = []
-            end_time = duration and (time.time() + duration)
-            while (not end_time) or time.time() < end_time:
-                success = self.cloud_socket.any_update.wait(30)
+        clients : list[tuple[BaseCloudSocketConnection, str]] = []
+        end_time = duration and (time.time() + duration)
+        while (not end_time) or time.time() < end_time:
+            _ = self.cloud_socket.any_update.wait(30)
+            try:
                 try:
+                    clients.append(self.cloud_socket.accept(timeout=0))
+                except TimeoutError:
+                    pass
+                for client, username in clients:
                     try:
-                        clients.append(self.cloud_socket.accept(timeout=0))
+                        msg = client.recv(timeout=0)
                     except TimeoutError:
-                        pass
-                    for client, username in clients:
-                        try:
-                            msg = client.recv(timeout=0)
-                        except TimeoutError:
-                            continue
-                        response : Optional[str] = "No response."
-                        try:
-                            self.current_client = client
-                            self.current_client_username = username
-                            raw_sub_requests = [raw_request.strip() for raw_request in msg.split(";")]
-                            sub_request_names = [re.match(r"\w+", raw_request) for raw_request in raw_sub_requests]
-                            sub_requests = []
-                            for req_name_match, raw_req in zip(sub_request_names, raw_sub_requests):
-                                if req_name_match is None:
-                                    continue
-                                req_name = req_name_match.group()
-                                using_python_syntax = re.match(r"\w+\(.*\)$", raw_req)
-                                python_syntax_allowed = self.requests[req_name].allow_python_syntax
-                                if using_python_syntax and python_syntax_allowed:
-                                    name, args, kwargs = parse_python_request(raw_req, req_name)
-                                    sub_requests.append((name, args, kwargs))
-                                if not using_python_syntax:
-                                    name, args, kwargs = parse_normal_request(raw_req, req_name)
-                                    sub_requests.append((name, args, kwargs))
-                                if using_python_syntax and not python_syntax_allowed:
-                                    raise PermissionError("Python syntax is not allowed for this.")
-                        except Exception:
-                            response = "The command syntax was wrong."
-                            try:
-                                if self.current_client is not None:
-                                    self.current_client.emit("invalid_syntax", content=msg, client=self.current_client)
-                            except Exception:
-                                pass
-                            warnings.warn("Received a request with an invalid syntax: \n"+traceback.format_exc(), RuntimeWarning)
-                        else:
-                            try:
-                                for idx, (name, args, kwargs) in enumerate(sub_requests):
-                                    self.execute_request(name, args=args, kwargs=kwargs, client=client, response=idx == len(sub_requests) - 1)
-                                response = None
-                            except Exception:
-                                response = "Something went wrong."
-                                warnings.warn(f"Something went wrong with a request: \n{traceback.format_exc()}", RuntimeWarning)
-                        if response:
-                            client.send(response)
+                        continue
+                    response = self.process_request(
+                        msg=msg,
+                        client=client,
+                        username=username,
+                        send_response=self.get_response_sender(client)
+                    )
+                    if response:
+                        client.send(response)
+            except Exception:
+                try:
+                    if self.current_client is not None:
+                        self.current_client.emit("uncaught_error", uncaught_error=traceback.format_exc(), last_client=self.current_client, last_raw_request=msg)
                 except Exception:
-                    try:
-                        if self.current_client is not None:
-                            self.current_client.emit("uncaught_error", uncaught_error=traceback.format_exc(), last_client=self.current_client, last_raw_request=msg)
-                    except Exception:
-                        pass
-                    warnings.warn(f"There was an uncaught error in the request handler: \n{traceback.format_exc()}", RuntimeWarning)
+                    pass
+                warnings.warn(f"There was an uncaught error in the request handler: \n{traceback.format_exc()}", RuntimeWarning)
         if cascade_stop:
             self.stop(cascade_stop=cascade_stop)
         return None
-                
     
-    def execute_request(self, name, *, args : Sequence[Any], kwargs : Mapping[str, Any], client : BaseCloudSocketConnection, response : bool = True) -> None:
+    def get_response_sender(self, client : BaseCloudSocketConnection) -> Callable[[str], None]:
         """
-        Execute a request.
+        Get a callable for sending responses.
         """
-        __response = response
+        return client.send
+
+    def process_request(self, msg : str, client : BaseCloudSocketConnection, username : str, send_response : Callable[[str], None]) -> Optional[str]:
+        """
+        Process a request and respond to it.
+        """
+        response : Optional[str]
+        try:
+            self.current_client = client
+            self.current_client_username = username
+            raw_sub_requests = [raw_request.strip() for raw_request in msg.split(";")]
+            sub_request_names = [re.match(r"\w+", raw_request) for raw_request in raw_sub_requests]
+            sub_requests = []
+            for req_name_match, raw_req in zip(sub_request_names, raw_sub_requests):
+                if req_name_match is None:
+                    continue
+                req_name = req_name_match.group()
+                using_python_syntax = re.match(r"\w+\(.*\)$", raw_req)
+                python_syntax_allowed = self.requests[req_name].allow_python_syntax
+                if using_python_syntax and python_syntax_allowed:
+                    name, args, kwargs = parse_python_request(raw_req, req_name)
+                    sub_requests.append((name, args, kwargs))
+                if not using_python_syntax:
+                    name, args, kwargs = parse_normal_request(raw_req, req_name)
+                    sub_requests.append((name, args, kwargs))
+                if using_python_syntax and not python_syntax_allowed:
+                    raise PermissionError("Python syntax is not allowed for this.")
+        except Exception:
+            response = "The command syntax was wrong."
+            try:
+                if self.current_client is not None:
+                    self.current_client.emit("invalid_syntax", content=msg, client=self.current_client)
+            except Exception:
+                pass
+            warnings.warn("Received a request with an invalid syntax: \n"+traceback.format_exc(), RuntimeWarning)
+        else:
+            try:
+                for idx, (name, args, kwargs) in enumerate(sub_requests):
+                    self.dispatch_request(name, args=args, kwargs=kwargs, client=client, response=idx == len(sub_requests) - 1, send_response=send_response)
+                response = None
+            except Exception:
+                response = "Something went wrong."
+                warnings.warn(f"Something went wrong with a request: \n{traceback.format_exc()}", RuntimeWarning)
+        return response
+                
+    def dispatch_request(self, name, *, args : Sequence[Any], kwargs : Mapping[str, Any], client : BaseCloudSocketConnection, response : bool = True, send_response : Callable[[str], None]) -> None:
+        """
+        Dispatch a request.
+        """
         request_handling_function = self.requests[name]
         args, kwargs, return_converter = type_casting(func=request_handling_function.function, signature=inspect.signature(request_handling_function), args=args, kwargs=kwargs)
         def respond(retried = False):
-            try:
-                response = str(return_converter(request_handling_function(*args, **kwargs)))
-            except ErrorMessage as e:
-                response = " ".join(e.args)
-            except Exception as e:
-                if self.error_handler and not retried:
-                    try:
-                        self.error_handler(e, lambda : respond(retried=True))
-                        return
-                    except Exception as e2:
-                        try:
-                            self.current_client.emit("error_in_request", request=name, args=args, kwargs=kwargs, client=self.current_client, error=e)
-                        except Exception:
-                            pass
-                        warnings.warn(f"Error in request couldn't be handled \"{name}\" with args: {args} and kwargs: {kwargs}: \n{traceback.format_exc()}", RuntimeWarning)
-                        return
-                try:
-                    self.current_client.emit("error_in_request", request=name, args=args, kwargs=kwargs, client=self.current_client, error=e)
-                except Exception:
-                    pass
-                warnings.warn(f"Error in request \"{name}\" with args: {args} and kwargs: {kwargs}: \n{traceback.format_exc()}", RuntimeWarning)
-            if not __response:
-                return
-            client.send(response)
+            return self.execute_request(
+                name=name,
+                args=args,
+                kwargs=kwargs,
+                client=client,
+                response=response,
+                return_converter=return_converter,
+                request_handling_function=request_handling_function,
+                retried=retried,
+                respond=respond,
+                send_response=send_response
+            )
         if request_handling_function.thread:
             thread = StoppableThread(target=respond)
             thread.start()
             return
         respond()
+    
+    def execute_request(
+        self,
+        name,
+        *,
+        args : Sequence[Any],
+        kwargs : Mapping[str, Any],
+        client : BaseCloudSocketConnection,
+        response : bool = True,
+        return_converter : Callable,
+        request_handling_function : Callable,
+        retried : bool = False,
+        respond : Callable,
+        send_response : Callable[[str], None]
+    ) -> None:
+        """
+        Execute a request handler.
+        """
+        try:
+            response_text = str(return_converter(request_handling_function(*args, **kwargs)))
+        except ErrorMessage as e:
+            response_text = " ".join(e.args)
+        except Exception as e:
+            if self.error_handler and not retried:
+                try:
+                    self.error_handler(e, lambda : respond(retried=True))
+                    return
+                except Exception:
+                    try:
+                        assert self.current_client is not None
+                        self.current_client.emit("error_in_request", request=name, args=args, kwargs=kwargs, client=self.current_client, error=e)
+                    except Exception:
+                        pass
+                    warnings.warn(f"Error in request couldn't be handled \"{name}\" with args: {args} and kwargs: {kwargs}: \n{traceback.format_exc()}", RuntimeWarning)
+                    return
+            try:
+                assert self.current_client is not None
+                self.current_client.emit("error_in_request", request=name, args=args, kwargs=kwargs, client=self.current_client, error=e)
+            except Exception:
+                pass
+            warnings.warn(f"Error in request \"{name}\" with args: {args} and kwargs: {kwargs}: \n{traceback.format_exc()}", RuntimeWarning)
+        if not response:
+            return
+        send_response(response_text)
     
     def stop(self, cascade_stop : bool = True):
         """
@@ -161,8 +208,7 @@ class RequestHandler(BaseRequestHandler):
             self.thread.stop(StopRequestHandler)
         if cascade_stop:
             self.cloud_socket.stop(cascade_stop=cascade_stop)
-            with self.cloud_socket.any_update:
-                self.cloud_socket.any_update.notify_all()
+            self.cloud_socket.any_update.set()
         if self.uses_thread and self.thread is not None:
             self.thread.join(5)
             
