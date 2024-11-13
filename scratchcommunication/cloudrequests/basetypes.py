@@ -6,7 +6,7 @@ from func_timeout import StoppableThread
 from typing import Union, Any, MutableMapping
 from types import FunctionType
 from dataclasses import dataclass, field
-from scratchcommunication.cloud_socket import CloudSocket, BaseCloudSocketConnection
+from scratchcommunication.cloud_socket import AnyCloudSocket, BaseCloudSocketConnection
 
 @dataclass(slots=True)
 class BaseRequestHandler:
@@ -14,7 +14,7 @@ class BaseRequestHandler:
     Base class for request handlers.
     """
     project_id : int = field(init=False)
-    cloud_socket : CloudSocket = field(kw_only=True)
+    cloud_socket : AnyCloudSocket = field(kw_only=True)
     requests : MutableMapping[str, SpecificRequestHandler] = field(init=False)
     uses_thread : bool = field(kw_only=True, default=False)
     thread : Union[StoppableThread, None] = field(init=False)
