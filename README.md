@@ -1,6 +1,11 @@
 # scratchcommunication
 A python module for communicating with scratch projects
 
+# IMPORTANT ANNOUNCEMENT
+In the future, one of the following might happen:
+1. scratchcommunication will be deprecated in favor of scratchattach (Exclusive features might be added/moved there)
+2. scratchcommunication will be reimplemented on top of scratchattach
+
 # Installation
 
 Run this in your commandline
