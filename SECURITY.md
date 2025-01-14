@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 2.15.2  | :white_check_mark: |
 | 2.14.4  | :white_check_mark: |
 | 2.14.3  | :x:                |
 
