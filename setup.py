@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
     
-VERSION = '2.15.3c'
+VERSION = '2.15.3d'
 
 setup(
     name='scratchcommunication',
@@ -13,7 +13,6 @@ setup(
     description='A python module for communicating with scratch projects',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/thecommcraft/scratchcommunication',
     packages=find_packages(exclude=[]),
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -36,4 +35,5 @@ setup(
         'weakreflist',
     ],
     python_requires='>=3.11',
+    project_urls={"Source": 'https://github.com/thecommcraft/scratchcommunication'},
 )
