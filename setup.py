@@ -9,7 +9,7 @@ setup(
     name='scratchcommunication',
     version=VERSION,
     author='Gine Mosild',
-    author_email='thecommcraft@gmail.com',
+    author_email='tcc@thecommcraft.de',
     description='A python module for communicating with scratch projects',
     long_description=long_description,
     long_description_content_type='text/markdown',
