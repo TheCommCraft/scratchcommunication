@@ -1,4 +1,4 @@
-from enum import Flag, auto
+from enum import Enum, auto
 
 _headers = {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36",
@@ -21,7 +21,7 @@ def get_headers():
 def get_cookies():
     return _cookies.copy()
 
-class Browser(Flag):
+class Browser(Enum):
     FIREFOX = auto()
     CHROME = auto()
     EDGE = auto()
