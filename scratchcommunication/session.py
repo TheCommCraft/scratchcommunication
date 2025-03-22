@@ -199,7 +199,7 @@ class Session(Sessionable):
             cookies = browsercookie.chromium()
         if EDGE_DEV in Browser:
             cookies = browsercookie.edge_dev()
-        if FIREFOX in Browser:
+        if VIVALDI in Browser:
             cookies = browsercookie.vivaldi()
         assert cookies is not None
         
