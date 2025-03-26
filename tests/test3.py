@@ -14,13 +14,17 @@ security = scratchcommunication.security.Security.from_string(os.getenv("SCRATCH
 input(f"The public data is: \"{security.public_data}\". The string representation of the keys is: \"{security.to_string()}\". Press enter to continue")
 
 session = get_session()
-cloud = session.create_cloud_socket(PROJECT_ID, security=security)
+cloud = session.create_tw_cloud_socket(PROJECT_ID, contact_info="TheCommCraft @ scratch, github and dc", security=security)
 client = scratchcommunication.cloudrequests.RequestHandler(cloud_socket=cloud, uses_thread=True)
 
 @client.request(name="test", auto_convert=True, allow_python_syntax=True, thread=False)
 def test_cmd(abc1 : int = None, abc2 : float = None) -> json.dumps:
     print(abc1, abc2)
     return {"abc1": abc1, "abc2": abc2}
+
+@cloud.cloud.on("any")
+def te(e):
+    print(e.__dict__)
 
 try:
     client.start()
