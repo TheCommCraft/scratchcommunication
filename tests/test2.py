@@ -11,7 +11,7 @@ USERNAME, PASSWORD = os.getenv("SCRATCH_USERNAME"), os.getenv("SCRATCH_PASSWORD"
 PROJECT_ID = 884190099#os.getenv("PROJECT_ID")
 
 session = get_session()
-cloud = session.create_cloud_socket(PROJECT_ID)
+cloud = session.create_tw_cloud_socket(PROJECT_ID, contact_info="TheCommCraft on github, scratch or discord")
 client = scratchcommunication.cloudrequests.RequestHandler(cloud_socket=cloud, uses_thread=True)
 
 @client.request(name="test", auto_convert=True, allow_python_syntax=True, thread=False)
