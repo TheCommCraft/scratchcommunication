@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from collections.abc import Callable
 from functools import wraps
 from typing_extensions import deprecated
-from weakref import WeakValueDictionary
+from weakref import WeakKeyDictionary
 from weakreflist import WeakList
 from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException, EventExpiredError
 import scratchcommunication
@@ -116,7 +116,7 @@ class CloudConnection(Context):
     wait_until : Union[float, int]
     receive_from_websocket : bool
     data_reception : Optional[StoppableThread] = None
-    event_order : WeakValueDictionary[Optional[Union[float, int, bool]], dict[Event, int]]
+    event_order : dict[Optional[Union[float, int, bool]], WeakKeyDictionary[Event, int]]
     processed_events : WeakList[Event]
     keep_all_events : bool
     supports_cloud_logs : bool
@@ -143,7 +143,7 @@ class CloudConnection(Context):
         self.keep_all_events = keep_all_events
         if keep_all_events:
             warnings.warn("keep_all_events is deprecated. Keep a strong reference of events instead.", DeprecationWarning)
-        self.event_order = WeakValueDictionary()
+        self.event_order = {}
         self.processed_events = WeakList()
         self.thread_running = True
         self.warning_type = warning_type
@@ -440,7 +440,7 @@ class CloudConnection(Context):
         Do not use.
         """
         try:
-            return len(self.event_order.get(event.value, {})) - self.event_order.get(event.value, {})[event] - 1
+            return len(self.event_order.get(event.value, WeakKeyDictionary())) - self.event_order.get(event.value, WeakKeyDictionary())[event] - 1
         except KeyError:
             raise ValueError("No such event")
 
@@ -455,7 +455,7 @@ class CloudConnection(Context):
         if isinstance(event, Event):
             event = event.type
         if not self.event_order.get(data.value):
-            self.event_order[data.value] = {}
+            self.event_order[data.value] = WeakKeyDictionary()
         self.event_order[data.value][data] = len(self.event_order[data.value])
         amount = self._emit_event(event, data) + self._emit_event("any", data)
         self.processed_events.append(data)
