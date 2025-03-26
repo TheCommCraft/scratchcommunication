@@ -37,7 +37,7 @@ session = scratchcommunication.Session("YOUR_USERNAME", session_id="YOUR_SESSION
 # You can also supply your XToken if it cannot be found using xtoken="YOUR_XTOKEN
 ```
 
-If you log in using your session id, you may not need your to supply your username.
+If you log in using your session id, you may not need to supply your username.
 
 ## Login using password
 
