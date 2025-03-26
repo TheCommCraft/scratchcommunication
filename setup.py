@@ -9,11 +9,10 @@ setup(
     name='scratchcommunication',
     version=VERSION,
     author='Gine Mosild',
-    author_email='thecommcraft@gmail.com',
+    author_email='tcc@thecommcraft.de',
     description='A python module for communicating with scratch projects',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/thecommcraft/scratchcommunication',
     packages=find_packages(exclude=[]),
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -36,4 +35,5 @@ setup(
         'weakreflist',
     ],
     python_requires='>=3.11',
+    project_urls={"Source": 'https://github.com/thecommcraft/scratchcommunication'},
 )
