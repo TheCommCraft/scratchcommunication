@@ -275,4 +275,4 @@ class Security:
       raise ValueError("Unknown format")
     data = data[8:]
     data = json.loads(data)
-    return cls(security_type=s_type, data=data)
+    return cls(security_type=s_type, data=tuple(data))
