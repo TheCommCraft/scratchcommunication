@@ -185,22 +185,21 @@ class Session(Sessionable):
         if not browsercookie:
             raise NotSupported("You cannot use browsercookie") from browsercookie_err
         cookies : Optional[CookieJar] = None
-        match browser:
-          case ANY:
+        if browser == ANY:
             cookies = browsercookie.load()
-          case FIREFOX:
+        elif browser == FIREFOX:
             cookies = browsercookie.firefox()
-          case CHROME:
+        elif browser == CHROME:
             cookies = browsercookie.chrome()
-          case EDGE:
+        elif browser == EDGE:
             cookies = browsercookie.edge()
-          case SAFARI:
+        elif browser == SAFARI:
             cookies = browsercookie.safari()
-          case CHROMIUM:
+        elif browser == CHROMIUM:
             cookies = browsercookie.chromium()
-          case EDGE_DEV:
+        elif browser == EDGE_DEV:
             cookies = browsercookie.edge_dev()
-          case VIVALDI:
+        elif browser == VIVALDI:
             cookies = browsercookie.vivaldi()
         assert cookies is not None
         
