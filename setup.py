@@ -3,12 +3,12 @@ from setuptools import setup, find_packages
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
     
-VERSION = '2.15.5'
+VERSION = '2.15.6'
 
 setup(
     name='scratchcommunication',
     version=VERSION,
-    author='Simon Gilde',
+    author='Gine Mosild',
     author_email='tcc@thecommcraft.de',
     description='A python module for communicating with scratch projects',
     long_description=long_description,
