@@ -8,7 +8,7 @@ VERSION = '2.15.6'
 setup(
     name='scratchcommunication',
     version=VERSION,
-    author='Gine Mosild',
+    author='TheCommCraft',
     author_email='tcc@thecommcraft.de',
     description='A python module for communicating with scratch projects',
     long_description=long_description,
