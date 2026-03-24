@@ -280,7 +280,7 @@ class Session(Sessionable):
         return cloud.CloudConnection(project_id=project_id, session=self, **kwargs)
 
     def create_turbowarp_cloudconnection(
-        self, project_id: str, *, username: Optional[str] =None, **kwargs
+        self, project_id: str, *, username: Optional[str] = None, **kwargs
     ) -> cloud.TwCloudConnection:
         """
         Create a cloud connection to a turbowarp project.
