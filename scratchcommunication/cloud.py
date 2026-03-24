@@ -6,51 +6,78 @@ from functools import wraps
 from typing_extensions import deprecated
 from weakref import WeakKeyDictionary
 from weakreflist import WeakList
-from .exceptions import QuickAccessDisabledError, NotSupported, ErrorInEventHandler, StopException, EventExpiredError
+from .exceptions import (
+    QuickAccessDisabledError,
+    NotSupported,
+    ErrorInEventHandler,
+    StopException,
+    EventExpiredError,
+)
 import scratchcommunication
 from func_timeout import StoppableThread
 import json, time, requests, warnings, traceback, secrets, ssl
 from websocket import WebSocket, WebSocketConnectionClosedException, WebSocketTimeoutException
 
+
 @dataclass
 class Context:
-    _cloud : CloudConnection = field(kw_only=True, repr=False)
-    
-    def set_var(self, name : str, value : Union[float, int, bool], *, name_literal : bool = False, context : Optional[Context] = None):
+    _cloud: CloudConnection = field(kw_only=True, repr=False)
+
+    def set_var(
+        self,
+        name: str,
+        value: Union[float, str, bool],
+        *,
+        name_literal: bool = False,
+        context: Optional[Context] = None,
+    ):
         """
         Set a variable in this context.
         """
-        return self._cloud.set_variable(name=name, value=value, name_literal=name_literal, context=context)
-        
-    def get_var(self, name : str, *, name_literal : bool = False, context : Optional[Context] = None) -> Union[float, int, bool]:
+        return self._cloud.set_variable(
+            name=name, value=value, name_literal=name_literal, context=context
+        )
+
+    def get_var(
+        self, name: str, *, name_literal: bool = False, context: Optional[Context] = None
+    ) -> Union[float, str, bool]:
         """
         Get a variable in this context.
         """
         return self._cloud.get_variable(name=name, name_literal=name_literal, context=context)
-    
-    def emit(self, event : Union[Event, Literal["set", "delete", "connect", "create"], str], *, context : Optional[Context] = None, **entries) -> int:
+
+    def emit(
+        self,
+        event: Union[Event, Literal["set", "delete", "connect", "create"], str],
+        *,
+        context: Optional[Context] = None,
+        **entries,
+    ) -> int:
         """
         Emit an event in this context.
         """
         return self._cloud.emit_event(event, context=context, **entries)
-    
+
     def get_cloud_connection(self):
         """
         Returns the assiociated cloud connection.
         """
         return self._cloud
 
+
 class EventDispatcher(Protocol):
-    def __call__(self, data : dict, **entries) -> None:
+    def __call__(self, data: dict, **entries) -> None:
         pass
 
+
 class Event(Context):
-    _id : Optional[int] = None
-    value : Optional[Union[float, int, bool]] = None
-    var : Optional[str] = None
-    name : Optional[str] = None
-    project : Optional[CloudConnection] = None
-    type : str
+    _id: Optional[int] = None
+    value: Optional[Union[float, str, bool]] = None
+    var: Optional[str] = None
+    name: Optional[str] = None
+    project: Optional[CloudConnection] = None
+    type: str
+
     def __init__(self, _type: Union[Literal["set", "delete", "connect", "create"], str], **entries):
         entries["type"] = _type
         self.__dict__.update(entries)
@@ -60,6 +87,8 @@ class Event(Context):
 
     @property
     def data(self):
+        if not self.project:
+            raise NotSupported("Event disconnected from cloud connection.")
         if not self.project.supports_cloud_logs:
             raise NotSupported("Cloud connection does not support cloud logs.")
         if self.type != "set":
@@ -87,62 +116,68 @@ class Event(Context):
     @property
     def timestamp(self):
         return self.data["timestamp"]
-    
+
     @property
     def _cloud(self):
         return self.project
-    
+
     def __hash__(self):
         return hash(self._id)
-    
+
     def __repr__(self):
         return f"<Event id={self._id}>"
+
 
 class CloudConnection(Context):
     """
     Connect to a cloud server and set cloud variables.
     """
-    project_id : Union[int, str]
-    thread_running : bool
-    warning_type : type[Warning]
-    session : Any
-    username : str
-    quickaccess : bool
-    reconnect : bool
-    values : dict[str, Any]
-    events : dict[str, Sequence[Callable]]
-    cloud_host : str
-    accept_strs : bool
-    wait_until : Union[float, int]
-    receive_from_websocket : bool
-    data_reception : Optional[StoppableThread] = None
-    event_order : dict[Optional[Union[float, int, bool]], WeakKeyDictionary[Event, int]]
-    processed_events : WeakList[Event]
-    keep_all_events : bool
-    supports_cloud_logs : bool
-    allow_no_certificate : bool
-    is_turbowarp : bool = False
-    websocket : Optional[WebSocket] = None
+
+    project_id: Union[int, str]
+    thread_running: bool
+    warning_type: type[Warning]
+    session: Any
+    username: str
+    quickaccess: bool
+    reconnect: bool
+    values: dict[str, Any]
+    events: dict[str, list[Callable]]
+    cloud_host: str
+    accept_strs: bool
+    wait_until: Union[float, int]
+    receive_from_websocket: bool
+    data_reception: Optional[StoppableThread] = None
+    event_order: dict[Optional[Union[float, str, bool]], WeakKeyDictionary[Event, int]]
+    processed_events: WeakList[Event]
+    keep_all_events: bool
+    supports_cloud_logs: bool
+    allow_no_certificate: bool
+    is_turbowarp: bool = False
+    websocket: Optional[WebSocket] = None
+
     def __init__(
         self,
         *,
-        project_id : Union[int, str],
-        session : Any = None,
-        username : Optional[str] = None,
-        quickaccess : bool = False,
-        reconnect : bool = True,
-        receive_from_websocket : bool = True,
-        warning_type : type[Warning] = ErrorInEventHandler,
-        daemon_thread : bool = False,
-        connect : bool = True,
-        keep_all_events : bool = False,
-        allow_no_certificate : bool = False
+        project_id: Union[int, str],
+        session: Any = None,
+        username: Optional[str] = None,
+        quickaccess: bool = False,
+        reconnect: bool = True,
+        receive_from_websocket: bool = True,
+        warning_type: type[Warning] = ErrorInEventHandler,
+        daemon_thread: bool = False,
+        connect: bool = True,
+        keep_all_events: bool = False,
+        allow_no_certificate: bool = False,
     ):
         self.allow_no_certificate = allow_no_certificate
         self.supports_cloud_logs = True
         self.keep_all_events = keep_all_events
         if keep_all_events:
-            warnings.warn("keep_all_events is deprecated. Keep a strong reference of events instead.", DeprecationWarning)
+            warnings.warn(
+                "keep_all_events is deprecated. Keep a strong reference of events instead.",
+                DeprecationWarning,
+            )
         self.event_order = {}
         self.processed_events = WeakList()
         self.thread_running = True
@@ -178,7 +213,7 @@ class CloudConnection(Context):
     def __exit__(self, exc_type, exc_value, traceback):
         self.stop_thread()
 
-    def stop_thread(self, cascade_stop : bool = True):
+    def stop_thread(self, cascade_stop: bool = True):
         """
         Use for stopping the underlying thread.
         """
@@ -186,7 +221,7 @@ class CloudConnection(Context):
         assert isinstance(self.data_reception, StoppableThread)
         self.data_reception.stop(StopException, 0.1)
         self.data_reception.join(5)
-        
+
     def enable_quickaccess(self):
         """
         Use for enabling the use of the object as a lookup table.
@@ -199,17 +234,17 @@ class CloudConnection(Context):
         """
         self.quickaccess = False
 
-    def _connect(self, no_cert : bool = False):
+    def _connect(self, no_cert: bool = False):
         self.websocket = WebSocket(sslopt=({"cert_reqs": ssl.CERT_NONE} if no_cert else None))
         self.websocket.connect(
             "wss://clouddata.scratch.mit.edu",
             cookie="scratchsessionsid=" + self.session.session_id + ";",
             origin="https://scratch.mit.edu",
             enable_multithread=True,
-            timeout=5
+            timeout=5,
         )
-    
-    def _handle_connect(self, *, retry : int = 3, reconnect : bool = False) -> Optional[Exception]:
+
+    def _handle_connect(self, *, retry: int = 3, reconnect: bool = False) -> Optional[Exception]:
         """
         Don't use this.
         """
@@ -228,9 +263,7 @@ class CloudConnection(Context):
             self._connect(no_cert=True)
         except Exception as e:
             if retry == 1:
-                return ConnectionError(
-                    "There was an error while connecting to the cloud server."
-                )
+                return ConnectionError("There was an error while connecting to the cloud server.")
             exc = self._handle_connect(retry=retry - 1)
             if exc and retry == 3:
                 raise exc from e
@@ -250,20 +283,21 @@ class CloudConnection(Context):
         """
         Don't use this.
         """
+        assert self.websocket
         self.websocket.send(json.dumps(packet) + "\n")
 
     @staticmethod
     def get_cloud_logs(
         *,
-        project_id : str,
-        limit : int = 100,
-        filter_by_name : Union[str, None] = None,
-        filter_by_name_literal : bool = False,
+        project_id: Union[str, int],
+        limit: int = 100,
+        filter_by_name: Union[str, None] = None,
+        filter_by_name_literal: bool = False,
     ) -> list:
         """
         Use for getting the cloud logs of a project.
         """
-        logs : list[dict[str, Any]] = []
+        logs: list[dict[str, Any]] = []
         filter_by_name = (
             filter_by_name
             if filter_by_name_literal
@@ -275,7 +309,7 @@ class CloudConnection(Context):
         while len(logs) < limit:
             data = requests.get(
                 f"https://clouddata.scratch.mit.edu/logs?projectid={project_id}&limit={limit}&offset={offset}",
-                timeout=10
+                timeout=10,
             ).json()
             logs.extend(
                 data
@@ -287,7 +321,7 @@ class CloudConnection(Context):
                 break
         return logs[:limit]
 
-    def verify_value(self, value : Union[float, int, bool]):
+    def verify_value(self, value: Union[float, str, bool]):
         """
         Use for detecting if a value can be used for cloud variables.
         """
@@ -297,9 +331,7 @@ class CloudConnection(Context):
         except Exception as e:
             raise ValueError("Bad value for cloud variables.") from e
 
-    def _set_variable(
-        self, *, name : str, value : Union[float, int, bool], retry : int
-    ):
+    def _set_variable(self, *, name: str, value: Union[float, str, bool], retry: int):
         """
         Don't use this.
         """
@@ -317,23 +349,19 @@ class CloudConnection(Context):
             raise e
         except Exception as e:
             if not self.reconnect:
-                raise ConnectionError(
-                    "There was an error while setting the cloud variable."
-                ) from e
+                raise ConnectionError("There was an error while setting the cloud variable.") from e
             if retry == 1:
-                raise ConnectionError(
-                    "There was an error while setting the cloud variable."
-                ) from e
+                raise ConnectionError("There was an error while setting the cloud variable.") from e
             self._handle_connect(reconnect=True)
             self._set_variable(name=name, value=value, retry=retry - 1)
 
     def set_variable(
         self,
         *,
-        name : str,
-        value : Union[float, int, bool],
-        name_literal : bool = False,
-        context : Optional[Context] = None
+        name: str,
+        value: Union[float, str, bool],
+        name_literal: bool = False,
+        context: Optional[Context] = None,
     ):
         """
         Use for setting a cloud variable.
@@ -356,8 +384,8 @@ class CloudConnection(Context):
         )
 
     def get_variable(
-        self, *, name : str, name_literal : bool = False, context : Optional[Context] = None
-    ) -> Union[float, int, bool]:
+        self, *, name: str, name_literal: bool = False, context: Optional[Context] = None
+    ) -> Union[float, str, bool]:
         """
         Use for getting the value of a cloud variable.
         """
@@ -366,30 +394,30 @@ class CloudConnection(Context):
         name = name if name_literal else "☁ " + name.removeprefix("☁ ")
         if self.receive_from_websocket:
             try:
-                return (self.values[name])
+                return self.values[name]
             except Exception:
                 pass
         try:
-            return (self.get_cloud_logs(
+            return self.get_cloud_logs(
                 project_id=str(self.project_id),
                 limit=1,
                 filter_by_name=name,
                 filter_by_name_literal=True,
-            )[0]["value"])
+            )[0]["value"]
         except (IndexError, NotSupported):
-            return (self.values[name])
+            return self.values[name]
 
-    def __getitem__(self, item : str) -> Union[float, int, bool]:
+    def __getitem__(self, item: str) -> Union[float, str, bool]:
         if not self.quickaccess:
             raise QuickAccessDisabledError("Quickaccess is disabled")
         return self.get_variable(name=item)
 
-    def __setitem__(self, item : str, value : Union[float, int, bool]):
+    def __setitem__(self, item: str, value: Union[float, str, bool]):
         if not self.quickaccess:
             raise QuickAccessDisabledError("Quickaccess is disabled")
         self.set_variable(name=item, value=value)
 
-    def receive_new_data(self, first : bool = False) -> dict:
+    def receive_new_data(self, first: bool = False) -> dict:
         """
         Use for receiving new cloud data.
         """
@@ -400,7 +428,7 @@ class CloudConnection(Context):
         else:
             packet_string = packet
         data = [json.loads(j) for j in packet_string.split("\n") if j]
-        
+
         for i in data:
             i["var"] = i["name"]
             i["name"] = i["name"].removeprefix("☁ ")
@@ -434,17 +462,26 @@ class CloudConnection(Context):
             except WebSocketConnectionClosedException:
                 self._handle_connect(reconnect=True)
                 self._prepare_handle_connection()
-                    
-    def get_age_of_event(self, event : Event) -> int:
+
+    def get_age_of_event(self, event: Event) -> int:
         """
         Do not use.
         """
         try:
-            return len(self.event_order.get(event.value, WeakKeyDictionary())) - self.event_order.get(event.value, WeakKeyDictionary())[event] - 1
+            return (
+                len(self.event_order.get(event.value, WeakKeyDictionary()))
+                - self.event_order.get(event.value, WeakKeyDictionary())[event]
+                - 1
+            )
         except KeyError:
             raise ValueError("No such event")
 
-    def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event, str], context : Optional[Context] = None, **entries) -> int:
+    def emit_event(
+        self,
+        event: Union[Literal["set", "delete", "connect", "create"], Event, str],
+        context: Optional[Context] = None,
+        **entries,
+    ) -> int:
         """
         Use for emitting events. Returns how many handlers could handle the event.
         """
@@ -460,15 +497,17 @@ class CloudConnection(Context):
         amount = self._emit_event(event, data) + self._emit_event("any", data)
         self.processed_events.append(data)
         return amount
-    
+
     @deprecated("Not needed anymore.")
-    def garbage_disposal_of_events(self, force_disposal : bool = False) -> int:
+    def garbage_disposal_of_events(self, force_disposal: bool = False) -> int:
         """
         Don't use anymore
         """
         return 0
 
-    def _emit_event(self, event : Union[Literal["set", "delete", "connect", "create", "any"], str], data : Event) -> int:
+    def _emit_event(
+        self, event: Union[Literal["set", "delete", "connect", "create", "any"], str], data: Event
+    ) -> int:
         """
         Don't use this.
         """
@@ -482,11 +521,13 @@ class CloudConnection(Context):
             except Exception:
                 warnings.warn(
                     f"There was an exception while trying to process an event: {traceback.format_exc()}",
-                    self.warning_type
+                    self.warning_type,
                 )
         return amount
 
-    def on(self, event : Union[Literal["set", "delete", "connect", "create", "any"], str]) -> Callable[[Callable[[Event], None]], EventDispatcher]:
+    def on(
+        self, event: Union[Literal["set", "delete", "connect", "create", "any"], str]
+    ) -> Callable[[Callable[[Event], None]], EventDispatcher]:
         """
         Register a new event.
         """
@@ -497,13 +538,17 @@ class CloudConnection(Context):
             else:
                 eventlist = self.events[event] = []
             eventlist.append(func)
+
             @wraps(func)
-            def dispatcher(data : Optional[dict] = None, /, *, context : Optional[Context] = None, **entries):
+            def dispatcher(
+                data: Optional[dict] = None, /, *, context: Optional[Context] = None, **entries
+            ):
                 return self.emit_event(event, context=context, **(data or {}), **entries)
+
             return dispatcher
 
         return wrapper
-    
+
     @property
     def _cloud(self):
         return self
@@ -513,28 +558,30 @@ class TwCloudConnection(CloudConnection):
     """
     Connect to a non scratch cloud server and set cloud variables.
     """
-    contact_info : str
-    user_agent : str
-    is_turbowarp : bool = True
+
+    contact_info: str
+    user_agent: str
+    is_turbowarp: bool = True
+
     def __init__(
-        self, 
-        *, 
-        project_id : str, 
-        username : str = "player1000", 
-        session : Any = None, 
-        quickaccess : bool = False, 
-        reconnect : bool = True, 
-        receive_from_websocket : bool = True, 
-        warning_type : type[Warning] = ErrorInEventHandler,
-        daemon_thread : bool = False, 
-        cloud_host : str = "wss://clouddata.turbowarp.org/", 
-        accept_strs : bool = False,
-        keep_all_events : bool = False,
-        contact_info : str,
-        allow_no_certificate : bool = False
+        self,
+        *,
+        project_id: str,
+        username: str = "player1000",
+        session: Any = None,
+        quickaccess: bool = False,
+        reconnect: bool = True,
+        receive_from_websocket: bool = True,
+        warning_type: type[Warning] = ErrorInEventHandler,
+        daemon_thread: bool = False,
+        cloud_host: str = "wss://clouddata.turbowarp.org/",
+        accept_strs: bool = False,
+        keep_all_events: bool = False,
+        contact_info: str,
+        allow_no_certificate: bool = False,
     ):
         super().__init__(
-            project_id=project_id, 
+            project_id=project_id,
             username=username,
             session=session,
             quickaccess=quickaccess,
@@ -544,12 +591,20 @@ class TwCloudConnection(CloudConnection):
             daemon_thread=daemon_thread,
             connect=False,
             keep_all_events=keep_all_events,
-            allow_no_certificate=allow_no_certificate
+            allow_no_certificate=allow_no_certificate,
         )
         self.supports_cloud_logs = False
-        self.contact_info = contact_info or ((f"@{session.username} on scratch" if session else "Anonymous") if username == "player1000" else f"@{username} on scratch")
-        assert self.contact_info != "Anonymous", "You need to specify your contact_info for the turbowarp cloud."
-        self.user_agent = f"scratchcommunication/{scratchcommunication.__version_number__} - {self.contact_info}"
+        self.contact_info = contact_info or (
+            (f"@{session.username} on scratch" if session else "Anonymous")
+            if username == "player1000"
+            else f"@{username} on scratch"
+        )
+        assert self.contact_info != "Anonymous", (
+            "You need to specify your contact_info for the turbowarp cloud."
+        )
+        self.user_agent = (
+            f"scratchcommunication/{scratchcommunication.__version_number__} - {self.contact_info}"
+        )
         self.cloud_host = cloud_host
         self.accept_strs = accept_strs
         self._handle_connect()
@@ -562,10 +617,15 @@ class TwCloudConnection(CloudConnection):
                     self._handle_connect(reconnect=True)
         self.data_reception = StoppableThread(target=self.receive_data, daemon=daemon_thread)
         self.data_reception.start()
-        
-    def _connect(self, no_cert : bool = False):
+
+    def _connect(self, no_cert: bool = False):
         self.websocket = WebSocket(sslopt=({"cert_reqs": ssl.CERT_NONE} if no_cert else None))
-        self.websocket.connect(self.cloud_host, enable_multithread=True, timeout=5, header={"User-Agent": self.user_agent})
+        self.websocket.connect(
+            self.cloud_host,
+            enable_multithread=True,
+            timeout=5,
+            header={"User-Agent": self.user_agent},
+        )
 
     @staticmethod
     def get_cloud_logs(*args, **kwargs):
@@ -587,10 +647,11 @@ class Sky(CloudConnection):
     """
     Multiple cloud connections in one.
     """
-    def __init__(self, *clouds : CloudConnection):
+
+    def __init__(self, *clouds: CloudConnection):
         self.clouds = clouds
-        
-    def stop_thread(self, cascade_stop : bool = True):
+
+    def stop_thread(self, cascade_stop: bool = True):
         """
         Use for stopping the underlying threads.
         """
@@ -598,14 +659,14 @@ class Sky(CloudConnection):
             warnings.warn("stop_thread with cascade_stop on doesn't do anything", RuntimeWarning)
         for cloud in self.clouds:
             cloud.stop_thread(cascade_stop=cascade_stop)
-        
+
     def set_variable(
         self,
         *,
-        name : str,
-        value : Union[float, int, bool],
-        name_literal : bool = False,
-        context : Optional[Context] = None
+        name: str,
+        value: Union[float, str, bool],
+        name_literal: bool = False,
+        context: Optional[Context] = None,
     ):
         """
         Use for setting a cloud variable.
@@ -614,14 +675,10 @@ class Sky(CloudConnection):
         assert context in self.clouds or context._cloud in self.clouds, "Wrong context"
         assert not (context is self or context._cloud is self), "Bad context"
         context.set_var(name=name, value=value, name_literal=name_literal, context=context)
-        
+
     def get_variable(
-        self,
-        *,
-        name : str,
-        name_literal : bool = False,
-        context : Optional[Context] = None
-    ) -> Union[float, int, bool]:
+        self, *, name: str, name_literal: bool = False, context: Optional[Context] = None
+    ) -> Union[float, str, bool]:
         """
         Use for setting a cloud variable.
         """
@@ -630,7 +687,12 @@ class Sky(CloudConnection):
         assert not (context is self or context._cloud is self), "Bad context"
         return context.get_var(name=name, name_literal=name_literal, context=context)
 
-    def emit_event(self, event : Union[Literal["set", "delete", "connect", "create"], Event, str], context : Optional[Context] = None, **entries) -> int:
+    def emit_event(
+        self,
+        event: Union[Literal["set", "delete", "connect", "create"], Event, str],
+        context: Optional[Context] = None,
+        **entries,
+    ) -> int:
         """
         Use for emitting events. Returns how many handlers could handle the event.
         """
@@ -638,21 +700,26 @@ class Sky(CloudConnection):
         assert context in self.clouds or context._cloud in self.clouds, "Wrong context"
         assert not (context is self or context._cloud is self), "Bad context"
         return context.emit(event, context=context, **entries)
-        
-    def on(self, event : Union[Literal["set", "delete", "connect", "create", "any"], str]) -> Callable[[Callable[[Event], None]], EventDispatcher]:
+
+    def on(
+        self, event: Union[Literal["set", "delete", "connect", "create", "any"], str]
+    ) -> Callable[[Callable[[Event], None]], EventDispatcher]:
         """
         Register a new event.
         """
+
         def wrapper(func):
             for cloud in self.clouds:
                 cloud.on(event)(func)
+
             @wraps(func)
-            def dispatcher(data : Optional[dict] = None, /, *, context : Context, **entries):
+            def dispatcher(data: Optional[dict] = None, /, *, context: Context, **entries):
                 return self.emit_event(event, context=context, **(data or {}), **entries)
+
             return dispatcher
 
         return wrapper
-    
+
     @property
     def _cloud(self):
         raise NotImplementedError
